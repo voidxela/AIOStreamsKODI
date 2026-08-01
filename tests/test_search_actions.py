@@ -62,18 +62,11 @@ class Progress:
 
 
 class State:
-    def __init__(self, scope='all', searches=None):
-        self.scope = scope
+    def __init__(self, searches=None):
         self.searches = searches or []
         self.recorded = []
         self.removed = []
         self.cleared = False
-
-    def get_last_search_scope(self):
-        return self.scope
-
-    def set_last_search_scope(self, scope):
-        self.scope = scope
 
     def record_search(self, query, scope):
         self.recorded.append((query, scope))
@@ -138,7 +131,7 @@ class SearchActionTests(unittest.TestCase):
         )
 
     def test_empty_scope_defaults_to_combined_search_and_records_a_submitted_search(self):
-        state = State(scope='shows')
+        state = State()
         Dialog.response = 'The Last of Us'
         calls = []
         dependencies = self.dependencies(
@@ -155,7 +148,6 @@ class SearchActionTests(unittest.TestCase):
             set(calls),
         )
         self.assertEqual([('The Last of Us', 'all')], state.recorded)
-        self.assertEqual('all', state.scope)
 
     def test_cancelled_input_does_not_record_or_search(self):
         state = State()

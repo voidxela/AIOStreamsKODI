@@ -1,4 +1,4 @@
-"""Durable, profile-local state for searches and preferences.
+"""Durable, profile-local state for recent searches.
 
 This database deliberately has no dependency on the disposable cache or the
 Trakt sync database.  It is safe for the plug-in and background service to use
@@ -67,7 +67,7 @@ def default_database_path():
 
 
 class UserState:
-    """SQLite-backed recent searches and preferences."""
+    """SQLite-backed recent searches."""
 
     _initialized_paths = set()
     _initialization_lock = threading.Lock()
@@ -167,12 +167,6 @@ class UserState:
                     PRIMARY KEY(normalized_query, content_type)
                 )
             ''')
-            connection.execute('''
-                CREATE TABLE IF NOT EXISTS preferences (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                )
-            ''')
             if row:
                 connection.execute('UPDATE schema_version SET version = ?', (1,))
             else:
@@ -241,25 +235,6 @@ class UserState:
             return cursor.rowcount > 0
 
     def clear_searches(self):
-        """Clear all search history without affecting preferences."""
+        """Clear all persisted search history."""
         with self._connection() as connection:
             connection.execute('DELETE FROM search_history')
-
-    def get_last_search_scope(self, default='all'):
-        """Return the persisted search scope, or the caller's normalized default."""
-        default = _search_scope(default)
-        with self._connection() as connection:
-            row = connection.execute(
-                "SELECT value FROM preferences WHERE key = 'last_search_scope'"
-            ).fetchone()
-        return _search_scope(row['value']) if row else default
-
-    def set_last_search_scope(self, content_type):
-        """Persist the scope selected in the search interface."""
-        scope = _search_scope(content_type)
-        with self._connection() as connection:
-            connection.execute('''
-                INSERT INTO preferences(key, value) VALUES ('last_search_scope', ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            ''', (scope,))
-        return scope

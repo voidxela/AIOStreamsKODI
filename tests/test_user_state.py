@@ -46,7 +46,8 @@ class UserStateTests(unittest.TestCase):
             }
 
         self.assertEqual(3, version)
-        self.assertTrue({'search_history', 'preferences'}.issubset(tables))
+        self.assertTrue({'search_history'}.issubset(tables))
+        self.assertNotIn('preferences', tables)
         self.assertNotIn('favorites', tables)
 
     def test_legacy_favorites_table_is_removed_without_touching_searches_or_preferences(self):
@@ -61,8 +62,6 @@ class UserStateTests(unittest.TestCase):
         with sqlite3.connect(self.database_path) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         self.assertNotIn('favorites', tables)
-        self.assertEqual('movies', self.state.set_last_search_scope('movies'))
-        self.assertEqual('movies', self.state.get_last_search_scope())
 
     def test_search_history_persists_deduplicates_orders_and_applies_limit(self):
         self.state.record_search('  The   Last of Us ', 'shows')
@@ -85,12 +84,9 @@ class UserStateTests(unittest.TestCase):
         restarted.clear_searches()
         self.assertEqual([], restarted.list_searches())
 
-    def test_empty_queries_are_ignored_and_scope_is_persisted(self):
+    def test_empty_queries_are_ignored(self):
         self.assertFalse(self.state.record_search('   ', 'all'))
         self.assertEqual([], self.state.list_searches())
-        self.assertEqual('all', self.state.get_last_search_scope())
-        self.assertEqual('movies', self.state.set_last_search_scope('movie'))
-        self.assertEqual('movies', UserState(self.database_path).get_last_search_scope())
 
     def test_two_instances_complete_concurrent_writes(self):
         first = UserState(self.database_path)

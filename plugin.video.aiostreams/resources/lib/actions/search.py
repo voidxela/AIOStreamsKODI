@@ -44,7 +44,7 @@ def _scope_for_content_type(content_type):
     }.get((content_type or '').lower(), 'all')
 
 
-def _normalized_content_type(content_type, dependencies):
+def _normalized_content_type(content_type):
     if not content_type:
         return 'both'
     return _content_type_for_scope(_scope_for_content_type(content_type))
@@ -102,7 +102,6 @@ def _remember_search(query, content_type, dependencies):
         return
     scope = _scope_for_content_type(content_type)
     try:
-        state.set_last_search_scope(scope)
         state.record_search(query, scope)
     except Exception as error:
         xbmc.log('[AIOStreams] Could not save search history: {}'.format(type(error).__name__), xbmc.LOGWARNING)
@@ -142,7 +141,7 @@ def search(params, dependencies):
 
 
 def _search(params, dependencies):
-    content_type = _normalized_content_type(params.get('content_type'), dependencies)
+    content_type = _normalized_content_type(params.get('content_type'))
     query = params.get('query', '').strip()
     try:
         skip = int(params.get('skip', 0))
