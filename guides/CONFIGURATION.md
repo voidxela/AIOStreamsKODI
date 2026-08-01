@@ -66,5 +66,4 @@ Keep a secure note of your specific AIOStreams instance details to ensure seamle
 If you make changes to your AIOStreams manifest (e.g., adding or removing lists) and they don't appear in Kodi immediately:
 
 1.  **Refresh Manifest**: Go to **Add-on Settings > Advanced > Maintenance** and select **Refresh Manifest Cache**.
-2.  **Restart Kodi**: A full restart will often clear any persistent caches in both the plugin and the skin.
-3.  **Widget Manager**: After refreshing, you may need to re-add the new lists using the **Widget Manager** in the AIODI skin settings.
+2.  **Restart Kodi**: A full restart will often clear persistent plugin caches.

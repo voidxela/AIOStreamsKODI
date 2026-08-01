@@ -16,6 +16,19 @@ AIOStreams acts as a frontend client for your [AIOStreams backend](https://githu
 - **🌐 Subtitle Support**: Automatic subtitle scraping via AIOStreams backend
 - **🎥 Trailer Playback**: YouTube trailer integration for content preview
 
+### Recent searches and favorites
+
+The home folder exposes separate **Search All**, **Search Movies**, and
+**Search Series** entries. Submitted non-empty searches are retained as up to
+20 recent query-and-scope pairs. Select a Recent Searches entry to rerun its
+original scope, or use its context menu to remove one entry or clear the list.
+
+The plugin's **Favorites** folder is a filtered view of Kodi's native Favorites
+store. Use Kodi's standard Add to favorites and Remove from favorites controls;
+there is no separate AIOStreams favorites database. Kodi does not notify add-ons
+about favorite changes, so an open AIOStreams Favorites folder checks on each
+five-second service tick and refreshes only after Kodi's native list changes.
+
 ---
 
 ## Required Configuration
@@ -25,7 +38,8 @@ AIOStreams acts as a frontend client for your [AIOStreams backend](https://githu
 You **must** have a running AIOStreams instance configured with:
 
 #### Required Components:
-- **Metadata Provider**: Must use a provider that serves **IMDB tags**
+- **Metadata Provider**: Should provide stable IMDb IDs; TMDb IDs are also
+  supported when reopening a favorite under a different configuration
   - **Recommended**: [AIOMetadata](https://github.com/cedya77/aiometadata) for stability and reliability
   - AIOMetadata provides rich metadata, catalog support, and IMDB ID integration
   
@@ -92,35 +106,18 @@ Use the following custom formatter parameters in your format string, all in the 
 
 ---
 
-## Optional Skin
-
-While AIOStreams works with any Kodi skin, we offer **AIODI** - a custom skin designed specifically for AIOStreams integration.
-
-### Why Use AIODI Skin?
-
-- **Seamless Integration**: Built-in widget support for AIOStreams catalogs
-- **Widget Manager**: Easy-to-use interface for customizing your home screen
-- **Trakt Widgets**: Dedicated Next Up and Watchlist widgets
-- **YouTube Trailers**: Integrated trailer playback from home screen
-- **IMVDb Support**: MTV-style music video browsing
-- **Modern Design**: Clean, responsive interface optimized for streaming
-
-**Learn more**: See [AIODI Skin Documentation](SKIN_DOCUMENTATION.md)
-
----
-
 ## Installation
 
 ### From Repository (Recommended)
 
-1. Add repository to Kodi: `https://shiggsy365.github.io/AIOStreamsKODI/`
+1. Add repository to Kodi: `https://voidxela.github.io/AIOStreamsKODI/`
 2. Go to: **Settings → Add-ons → Install from repository**
 3. Select **AIOStreams Repository → Video add-ons → AIOStreams**
 4. Click **Install**
 
 ### From Zip File
 
-1. Download latest release from [GitHub Releases](https://github.com/shiggsy365/AIOStreamsKODI/releases)
+1. Download the repository ZIP from [the project page](https://voidxela.github.io/AIOStreamsKODI/)
 2. Go to: **Settings → Add-ons → Install from zip file**
 3. Select the downloaded `.zip` file
 
@@ -144,23 +141,15 @@ While AIOStreams works with any Kodi skin, we offer **AIODI** - a custom skin de
 - Check that scrapers are configured in your backend
 - Ensure metadata provider (AIOMetadata) is properly configured
 
-### IMDB ID Errors
-- Confirm your metadata provider serves IMDB tags
-- AIOMetadata is recommended for reliable IMDB ID support
+### External ID Errors
+- Confirm your metadata provider serves stable IMDb or TMDb IDs
+- AIOMetadata is recommended for reliable external ID support
 - Check backend logs for metadata provider errors
 
 ### Trakt Sync Issues
 - Re-authorize Trakt in plugin settings
 - Check Trakt API status at [trakt.tv/status](https://trakt.tv/status)
 - Verify automatic sync is enabled and allow it to complete before retrying
-
----
-
-## Support the Project
-
-If you find this plugin useful, consider supporting development:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/shiggsy365)
 
 ---
 

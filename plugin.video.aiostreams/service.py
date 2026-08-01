@@ -11,6 +11,7 @@ import threading
 import platform
 from collections import deque
 from resources.lib.monitor import AIOStreamsPlayer
+from resources.lib.native_favorites import FavoritesDisplayPoller, list_aiostreams_favorites
 
 
 class BackgroundTaskQueue:
@@ -207,6 +208,11 @@ class AIOStreamsService:
         xbmc.log('[AIOStreams Service] Replaced global PLAYER instance with service player', xbmc.LOGINFO)
         
         self.task_queue = get_task_queue()
+        self.favorites_poller = FavoritesDisplayPoller(
+            current_path=lambda: xbmc.getInfoLabel('Container.FolderPath'),
+            get_favorites=list_aiostreams_favorites,
+            refresh=lambda: xbmc.executebuiltin('Container.Refresh'),
+        )
         self.sync_interval = 5 * 60  # 5 minutes in seconds
         self.last_sync = 0
         self.auto_sync_enabled = True
@@ -476,7 +482,9 @@ class AIOStreamsService:
         xbmc.executebuiltin('Container.Refresh')
         xbmc.log('[AIOStreams Service] Forced container refresh for widgets', xbmc.LOGINFO)
 
-        # Main loop - check for sync every 30 seconds
+        # Poll native Favorites on each five-second service tick, but only
+        # while this add-on's Favorites directory is open. The poller refreshes
+        # Kodi only when its visible native entries have changed.
         loop_count = 0
         while not self.monitor.abortRequested():
             # Check if search is active (Global or Internal) - if so, skip background noise
@@ -485,6 +493,7 @@ class AIOStreamsService:
                            win_home.getProperty('AIOStreams.InternalSearchActive') == 'true'
             
             if not search_active:
+                self.favorites_poller.poll()
                 # Check for sync
                 if self.should_sync():
                     self.perform_sync()
@@ -493,17 +502,14 @@ class AIOStreamsService:
                 processed = self.task_queue.process_all(max_time=2.0)
                 if processed > 0:
                     xbmc.log(f'[AIOStreams Service] Processed {processed} background tasks', xbmc.LOGDEBUG)
-            else:
-                xbmc.log('[AIOStreams Service] Search active, suppressing background tasks', xbmc.LOGDEBUG)
 
             # Periodic cache cleanup (every ~30 minutes)
             loop_count += 1
-            if loop_count >= 60:  # 60 * 30 seconds = 30 minutes
+            if loop_count >= 360:  # 360 * 5 seconds = 30 minutes
                 loop_count = 0
                 queue_task(self.run_cache_cleanup, priority=-1, description='Periodic cache cleanup')
 
-            # Wait for abort for 30 seconds (check more frequently for responsiveness)
-            if self.monitor.waitForAbort(30):
+            if self.monitor.waitForAbort(5):
                 # Abort requested
                 break
 

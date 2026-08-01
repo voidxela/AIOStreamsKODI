@@ -23,13 +23,10 @@ This Kodi addon acts as a frontend client to your AIOStreams backend, bringing a
 
 ## 📖 Documentation & Setup
 
-For detailed installation guides, configuration options, and advanced tips, please refer to our guides:
+For installation, configuration options, and advanced details, see:
 
-### [👉 AIOStreams Guides](guides/WIKI_HOME.md)
-
-Key Guides:
-- **[Installation & Setup](guides/INSTALLATION_WIZARD.md)**
 - **[Configuration Guide](guides/CONFIGURATION.md)**
+- **[Plugin Documentation](docs/PLUGIN_DOCUMENTATION.md)**
 - **[Architecture Overview](ARCHITECTURE.md)**
 
 ---
@@ -37,7 +34,8 @@ Key Guides:
 ## Key Components
 
 - **🎬 Standalone Plugin**: Use AIOStreams with any Kodi skin.
-- **📺 AIODI Skin**: A custom-designed Kodi skin optimized for AIOStreams and AIOMetadata integration.
+- **🔎 Recent Searches**: The plugin keeps the 20 most recent query-and-scope pairs. Choose a saved entry to repeat the same All, Movies, or Series search; remove individual entries or clear the list from its context menu.
+- **⭐ Kodi Favorites**: The Favorites folder shows AIOStreams movie and series entries from Kodi's native Favorites store. Add or remove these with Kodi's normal Favorites controls; the add-on does not keep a second favorites database.
 
 ---
 
@@ -49,7 +47,3 @@ This addon is powered by the incredible work of:
 - **[AIOMetadata](https://github.com/cedya77/aiometadata)** by [Cedya77](https://github.com/cedya77) - Metadata and catalog provider for rich content information
 
 Special thanks to the Kodi community for testing and feedback!
-
-**Support the ecosystem:**
-
-[<img src="https://github.com/shiggsy365/AIOStreamsKODI/blob/main/.github/support_me_on_kofi_red.png?raw=true">](https://ko-fi.com/shiggsy365)

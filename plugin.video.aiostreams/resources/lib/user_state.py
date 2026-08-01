@@ -1,4 +1,4 @@
-"""Durable, profile-local state for searches and local favorites.
+"""Durable, profile-local state for recent searches.
 
 This database deliberately has no dependency on the disposable cache or the
 Trakt sync database.  It is safe for the plug-in and background service to use
@@ -11,10 +11,7 @@ import os
 import sqlite3
 import threading
 import time
-from typing import Iterator, Mapping, Optional, Union
-
-from .media import MediaRef, normalize_content_type
-
+from typing import Iterator, Optional
 
 SCHEMA_VERSION = 1
 DEFAULT_HISTORY_LIMIT = 20
@@ -60,33 +57,6 @@ def _normalized_query(query):
     return ' '.join(query.split()).casefold() if query else None
 
 
-def _as_media_ref(media):
-    if isinstance(media, MediaRef):
-        return media
-    if isinstance(media, Mapping):
-        return MediaRef.from_meta(media, media.get('content_type') or media.get('type'))
-    raise TypeError('A MediaRef or metadata mapping is required')
-
-
-def favorite_key(media: Union[MediaRef, Mapping]) -> str:
-    """Return the configuration-safe, stable key for a movie or show favorite."""
-    media = _as_media_ref(media)
-    content_type = normalize_content_type(media.content_type)
-    if content_type not in ('movie', 'series'):
-        raise ValueError('Only movies and shows can be local favorites')
-    if media.imdb_id:
-        return '{}:imdb:{}'.format(content_type, media.imdb_id.casefold())
-    if media.tmdb_id:
-        return '{}:tmdb:{}'.format(content_type, media.tmdb_id)
-    if not media.origin_fingerprint or not media.metadata_id:
-        raise ValueError(
-            'An opaque favorite requires both an origin fingerprint and metadata ID'
-        )
-    return '{}:origin:{}:{}'.format(
-        content_type, media.origin_fingerprint, media.metadata_id,
-    )
-
-
 def default_database_path():
     """Resolve the add-on profile database location only when Kodi is present."""
     import xbmcaddon
@@ -97,7 +67,7 @@ def default_database_path():
 
 
 class UserState:
-    """SQLite-backed local favorites, recent searches, and preferences."""
+    """SQLite-backed recent searches."""
 
     _initialized_paths = set()
     _initialization_lock = threading.Lock()
@@ -168,58 +138,36 @@ class UserState:
                     except sqlite3.DatabaseError:
                         _log(2, 'WAL unavailable; using SQLite default journal mode')
                     connection.execute('BEGIN IMMEDIATE')
-                    self._migrate(connection)
+                    self._initialize_schema(connection)
                     connection.commit()
             except (OSError, sqlite3.Error) as error:
                 self._raise_database_error('initialize', error)
             self._initialized_paths.add(self.database_path)
 
+    def initialize(self):
+        """Ensure the recent-search schema exists without writing search data."""
+        self._ensure_initialized()
+
     @staticmethod
-    def _migrate(connection):
+    def _initialize_schema(connection):
+        """Create the only durable user-state table used by this add-on."""
         connection.execute(
             'CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)'
         )
         row = connection.execute('SELECT version FROM schema_version LIMIT 1').fetchone()
-        version = row['version'] if row else 0
-        if version > SCHEMA_VERSION:
-            raise UserStateError('User-state database uses a newer schema version')
-        if version < 1:
-            connection.execute('''
-                CREATE TABLE IF NOT EXISTS search_history (
-                    normalized_query TEXT NOT NULL,
-                    query TEXT NOT NULL,
-                    content_type TEXT NOT NULL,
-                    last_used_at INTEGER NOT NULL,
-                    PRIMARY KEY(normalized_query, content_type)
-                )
-            ''')
-            connection.execute('''
-                CREATE TABLE IF NOT EXISTS preferences (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                )
-            ''')
-            connection.execute('''
-                CREATE TABLE IF NOT EXISTS favorites (
-                    favorite_key TEXT PRIMARY KEY,
-                    content_type TEXT NOT NULL,
-                    metadata_id TEXT NOT NULL,
-                    playable_id TEXT,
-                    imdb_id TEXT,
-                    tmdb_id TEXT,
-                    title TEXT NOT NULL,
-                    year INTEGER,
-                    poster TEXT,
-                    fanart TEXT,
-                    origin_fingerprint TEXT,
-                    added_at INTEGER NOT NULL,
-                    updated_at INTEGER NOT NULL
-                )
-            ''')
-            if row:
-                connection.execute('UPDATE schema_version SET version = ?', (1,))
-            else:
-                connection.execute('INSERT INTO schema_version(version) VALUES (1)')
+        connection.execute('''
+            CREATE TABLE IF NOT EXISTS search_history (
+                normalized_query TEXT NOT NULL,
+                query TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                last_used_at INTEGER NOT NULL,
+                PRIMARY KEY(normalized_query, content_type)
+            )
+        ''')
+        if row:
+            connection.execute('UPDATE schema_version SET version = ?', (SCHEMA_VERSION,))
+        else:
+            connection.execute('INSERT INTO schema_version(version) VALUES (?)', (SCHEMA_VERSION,))
 
     def _raise_database_error(self, operation, error):
         _log(3, '{} failed: {}'.format(operation, type(error).__name__))
@@ -280,100 +228,6 @@ class UserState:
             return cursor.rowcount > 0
 
     def clear_searches(self):
-        """Clear all search history without affecting favorites or preferences."""
+        """Clear all persisted search history."""
         with self._connection() as connection:
             connection.execute('DELETE FROM search_history')
-
-    def get_last_search_scope(self, default='all'):
-        """Return the persisted search scope, or the caller's normalized default."""
-        default = _search_scope(default)
-        with self._connection() as connection:
-            row = connection.execute(
-                "SELECT value FROM preferences WHERE key = 'last_search_scope'"
-            ).fetchone()
-        return _search_scope(row['value']) if row else default
-
-    def set_last_search_scope(self, content_type):
-        """Persist the scope selected in the search interface."""
-        scope = _search_scope(content_type)
-        with self._connection() as connection:
-            connection.execute('''
-                INSERT INTO preferences(key, value) VALUES ('last_search_scope', ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            ''', (scope,))
-        return scope
-
-    def add_favorite(self, media: Union[MediaRef, Mapping]):
-        """Add or refresh one movie/show snapshot and return its stable key."""
-        media = _as_media_ref(media)
-        key = favorite_key(media)
-        timestamp = self._timestamp()
-        with self._connection() as connection:
-            connection.execute('''
-                INSERT INTO favorites(
-                    favorite_key, content_type, metadata_id, playable_id, imdb_id, tmdb_id,
-                    title, year, poster, fanart, origin_fingerprint, added_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(favorite_key) DO UPDATE SET
-                    content_type = excluded.content_type,
-                    metadata_id = excluded.metadata_id,
-                    playable_id = excluded.playable_id,
-                    imdb_id = excluded.imdb_id,
-                    tmdb_id = excluded.tmdb_id,
-                    title = excluded.title,
-                    year = excluded.year,
-                    poster = excluded.poster,
-                    fanart = excluded.fanart,
-                    origin_fingerprint = excluded.origin_fingerprint,
-                    updated_at = excluded.updated_at
-            ''', (
-                key, normalize_content_type(media.content_type), media.metadata_id,
-                media.playable_id, media.imdb_id, media.tmdb_id, media.title, media.year,
-                media.poster, media.fanart, media.origin_fingerprint, timestamp, timestamp,
-            ))
-        return key
-
-    def list_favorites(self, content_type=None):
-        """Return favorite snapshots, newest additions first, optionally by type."""
-        query = 'SELECT * FROM favorites'
-        arguments = ()
-        if content_type is not None:
-            normalized_type = normalize_content_type(content_type)
-            if normalized_type not in ('movie', 'series'):
-                raise ValueError('Favorites can only be filtered by movie or series')
-            query += ' WHERE content_type = ?'
-            arguments = (normalized_type,)
-        query += ' ORDER BY added_at DESC, favorite_key ASC'
-        with self._connection() as connection:
-            return [dict(row) for row in connection.execute(query, arguments)]
-
-    def get_favorite(self, key):
-        """Return one stored favorite snapshot, or ``None`` when it is absent."""
-        with self._connection() as connection:
-            row = connection.execute(
-                'SELECT * FROM favorites WHERE favorite_key = ?', (str(key),)
-            ).fetchone()
-        return dict(row) if row else None
-
-    def is_favorite(self, media_or_key):
-        """Check favorite membership by a MediaRef/metadata mapping or stable key."""
-        key = (
-            favorite_key(media_or_key)
-            if isinstance(media_or_key, (MediaRef, Mapping)) else str(media_or_key)
-        )
-        return self.get_favorite(key) is not None
-
-    def remove_favorite(self, media_or_key):
-        """Remove one favorite; return whether a row existed."""
-        key = (
-            favorite_key(media_or_key)
-            if isinstance(media_or_key, (MediaRef, Mapping)) else str(media_or_key)
-        )
-        with self._connection() as connection:
-            cursor = connection.execute('DELETE FROM favorites WHERE favorite_key = ?', (key,))
-            return cursor.rowcount > 0
-
-    def clear_favorites(self):
-        """Clear favorites without touching history, preferences, cache, or Trakt data."""
-        with self._connection() as connection:
-            connection.execute('DELETE FROM favorites')

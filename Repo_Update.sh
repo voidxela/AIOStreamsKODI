@@ -1,699 +1,99 @@
-#!/bin/bash
-# AIOStreams Repository Update Tool
-# Unified script for updating plugin and/or skin versions
+#!/usr/bin/env bash
+# Build the GitHub Pages Kodi repository for the current AIOStreams release.
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-GRAY='\033[0;90m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+set -euo pipefail
 
-# Base Path
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ADDON_ID="plugin.video.aiostreams"
+REPOSITORY_ID="repository.aiostreams"
+PAGES_DIR="$BASE_DIR/docs"
+REPOSITORY_DIR="$PAGES_DIR/$REPOSITORY_ID"
+ZIPS_DIR="$REPOSITORY_DIR/zips"
+ADDON_XML="$BASE_DIR/$ADDON_ID/addon.xml"
+REPOSITORY_XML="$REPOSITORY_DIR/addon.xml"
 
-# Input Automation
-INPUT_QUEUE=()
-if [[ -n "$1" ]]; then
-    # Check if input has slashes
-    if [[ "$1" == *"/"* ]]; then
-        IFS='/' read -ra INPUT_QUEUE <<< "$1"
-    else
-        INPUT_QUEUE=("$@")
-    fi
-fi
-
-ask() {
-    local prompt="$1"
-    local var_name="$2"
-    if [[ ${#INPUT_QUEUE[@]} -gt 0 ]]; then
-        local val="${INPUT_QUEUE[0]}"
-        INPUT_QUEUE=("${INPUT_QUEUE[@]:1}")
-        echo -e "${prompt}${GREEN}${val}${NC}"
-        eval $var_name="'$val'"
-    else
-        read -p "$prompt" $var_name
-    fi
-}
-
-# Helper Functions
-get_source_version() {
-    local xml_path="$1"
-    if [[ -f "$xml_path" ]]; then
-        # Look for version inside the <addon tag specifically
-        local version=$(grep -E "<addon " "$xml_path" | grep -m 1 "version=" | sed -n 's/.*version="\([^"]*\)".*/\1/p')
-        echo "$version"
-    else
-        echo ""
-    fi
-}
-
-increment_version() {
-    local version="$1"
-
-    if [[ $version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-        local major="${BASH_REMATCH[1]}"
-        local minor="${BASH_REMATCH[2]}"
-        local patch="${BASH_REMATCH[3]}"
-
-        patch=$((patch + 1))
-        echo "$major.$minor.$patch"
-    else
-        echo ""
-    fi
-}
-
-update_kodi_file() {
-    local path="$1"
-    local old="$2"
-    local new="$3"
-
-    if [[ -f "$path" ]]; then
-        # Specifically target <addon ... version="[old]" to avoid breaking XML headers or dependencies
-        if grep -qE "<addon .*version=\"$old\"" "$path"; then
-            sed -i "s/\(<addon .*\)version=\"$old\"/\1version=\"$new\"/g" "$path"
-            echo -e "  ${GREEN}[+]${GRAY} Updated: $path${NC}"
-        else
-            echo -e "  ${GRAY}[i] No changes needed: $path${NC}"
-        fi
-    else
-        echo -e "  ${YELLOW}[!] Warning: Path not found - $path${NC}"
-    fi
+version_from() {
+    sed -n 's/.*<addon .*version="\([^"]*\)".*/\1/p' "$1" | head -n 1
 }
 
 write_md5() {
-    local target_file="$1"
-    local md5_path="$2"
-
-    if [[ -f "$target_file" ]]; then
-        local filename=$(basename "$target_file")
-        local hash=$(md5sum "$target_file" | awk '{print $1}')
-        echo -n "$hash" > "$md5_path"
-        echo -e "  ${GREEN}[+]${GRAY} Created: $(basename "$md5_path")${NC}"
-    else
-        echo -e "  ${YELLOW}[!] Warning: File not found - $target_file${NC}"
-    fi
+    md5sum "$1" | awk '{print $1}' > "$1.md5"
 }
 
-build_plugin_zip() {
-    local destination="$1"
-    local source_dir="$2"
-
-    local dest_dir=$(dirname "$destination")
-    mkdir -p "$dest_dir"
-
-    if [[ -f "$destination" ]]; then
-        rm -f "$destination"
-    fi
-
-    local temp_dir=$(mktemp -d)
-    local plugin_dir="$temp_dir/plugin.video.aiostreams"
-    mkdir -p "$plugin_dir"
-
-    rsync -a --exclude='__pycache__' \
-             --exclude='*.pyc' \
-             --exclude='.DS_Store' \
-             --exclude='.git*' \
-             "$source_dir/" "$plugin_dir/"
-    (cd "$temp_dir" && zip -r -q "$destination" plugin.video.aiostreams/)
-
-    rm -rf "$temp_dir"
-
-    local zip_size=$(du -k "$destination" | cut -f1)
-    echo -e "  ${GREEN}[+]${GRAY} Created: $destination (${zip_size} KB)${NC}"
+verify_md5() {
+    local expected actual
+    expected="$(<"$1.md5")"
+    actual="$(md5sum "$1" | awk '{print $1}')"
+    [[ "$actual" == "$expected" ]]
 }
 
-build_skin_zip() {
+build_zip() {
     local destination="$1"
-    local source_dir="$2"
+    local directory_name="$2"
+    local source_dir="$3"
+    local temp_dir
+    temp_dir="$(mktemp -d)"
 
-    local dest_dir=$(dirname "$destination")
-    mkdir -p "$dest_dir"
-
-    if [[ -f "$destination" ]]; then
-        rm -f "$destination"
-    fi
-
-    local temp_dir=$(mktemp -d)
-    local skin_dir="$temp_dir/skin.AIODI"
-    mkdir -p "$skin_dir"
-
-    rsync -a --exclude='CUSTOM_SKIN_PLAN.md' \
-             --exclude='IMPLEMENTATION_SUMMARY.md' \
-             --exclude='TESTING_INSTRUCTIONS.md' \
-             "$source_dir/" "$skin_dir/"
-
-    (cd "$temp_dir" && zip -r -q "$destination" skin.AIODI/)
+    mkdir -p "$temp_dir/$directory_name"
+    rsync -a --delete \
+        --exclude='__pycache__' --exclude='*.pyc' --exclude='.DS_Store' --exclude='.git*' \
+        "$source_dir/" "$temp_dir/$directory_name/"
+    (cd "$temp_dir" && zip -r -q "$destination" "$directory_name")
     rm -rf "$temp_dir"
-
-    local zip_size=$(du -k "$destination" | cut -f1)
-    echo -e "  ${GREEN}[+]${GRAY} Created: $destination (${zip_size} KB)${NC}"
-}
-
-build_onboarding_zip() {
-    local destination="$1"
-    local source_dir="$2"
-
-    local dest_dir=$(dirname "$destination")
-    mkdir -p "$dest_dir"
-
-    if [[ -f "$destination" ]]; then
-        rm -f "$destination"
-    fi
-
-    local temp_dir=$(mktemp -d)
-    local addon_dir="$temp_dir/script.aiodi.onboarding"
-    mkdir -p "$addon_dir"
-
-    rsync -a --exclude='__pycache__' \
-             --exclude='*.pyc' \
-             --exclude='.DS_Store' \
-             --exclude='.git*' \
-             "$source_dir/" "$addon_dir/"
-    (cd "$temp_dir" && zip -r -q "$destination" script.aiodi.onboarding/)
-
-    rm -rf "$temp_dir"
-
-    local zip_size=$(du -k "$destination" | cut -f1)
-    echo -e "  ${GREEN}[+]${GRAY} Created: $destination (${zip_size} KB)${NC}"
 }
 
 build_repository_zip() {
     local destination="$1"
-    local source_dir="$2"
+    local temp_dir
+    temp_dir="$(mktemp -d)"
 
-    local dest_dir=$(dirname "$destination")
-    mkdir -p "$dest_dir"
-
-    if [[ -f "$destination" ]]; then
-        rm -f "$destination"
-    fi
-
-    local temp_dir=$(mktemp -d)
-    local repo_dir="$temp_dir/repository.aiostreams"
-    mkdir -p "$repo_dir"
-
-    cp "$source_dir/addon.xml" "$repo_dir/"
-    cp "$source_dir/icon.png" "$repo_dir/"
-
-    (cd "$temp_dir" && zip -r -q "$destination" repository.aiostreams/)
+    mkdir -p "$temp_dir/$REPOSITORY_ID"
+    cp "$REPOSITORY_XML" "$temp_dir/$REPOSITORY_ID/addon.xml"
+    cp "$REPOSITORY_DIR/icon.png" "$temp_dir/$REPOSITORY_ID/icon.png"
+    (cd "$temp_dir" && zip -r -q "$destination" "$REPOSITORY_ID")
     rm -rf "$temp_dir"
-
-    local zip_size=$(du -k "$destination" | cut -f1)
-    echo -e "  ${GREEN}[+]${GRAY} Created: $destination (${zip_size} KB)${NC}"
 }
 
-rebuild_addons_xml() {
-    local addons_xml="$BASE_DIR/docs/repository.aiostreams/zips/addons.xml"
-    local addons_md5="$addons_xml.md5"
-    
-    echo -e "\n${CYAN}[*] Regenerating addons.xml...${NC}"
-    
-    # Start fresh
-    echo '<?xml version="1.0" encoding="UTF-8"?>' > "$addons_xml"
-    echo '<addons>' >> "$addons_xml"
-    
-    # Files to include
-    local source_files=(
-        "$BASE_DIR/docs/repository.aiostreams/addon.xml"
-        "$BASE_DIR/plugin.video.aiostreams/addon.xml"
-        "$BASE_DIR/plugin.video.imvdb/addon.xml"
-        "$BASE_DIR/script.aiodi.onboarding/addon.xml"
-        "$BASE_DIR/skin.AIODI/addon.xml"
-    )
-    
-    for f in "${source_files[@]}"; do
-        if [[ -f "$f" ]]; then
-            # Extract only the <addon>...</addon> block
-            sed -n '/<addon/,/<\/addon>/p' "$f" >> "$addons_xml"
-            echo "" >> "$addons_xml"
-            echo -e "  ${GREEN}[+]${GRAY} Added: $(grep -m 1 "id=" "$f" | sed -n 's/.*id="\([^"]*\)".*/\1/p')${NC}"
-        else
-            echo -e "  ${YELLOW}[!] Warning: Source addon.xml not found: $f${NC}"
-        fi
-    done
-    
-    echo '</addons>' >> "$addons_xml"
-    
-    # Update checksum
-    write_md5 "$addons_xml" "$addons_md5"
-}
+addon_version="$(version_from "$ADDON_XML")"
+repository_version="$(version_from "$REPOSITORY_XML")"
 
-update_plugin() {
-    local old_version="$1"
-    local new_version="$2"
-
-    echo -e "\n${CYAN}========================================${NC}"
-    echo -e "${CYAN}Updating Plugin: $old_version -> $new_version${NC}"
-    echo -e "${CYAN}========================================${NC}"
-
-    local xml_paths=(
-        "$BASE_DIR/plugin.video.aiostreams/addon.xml"
-        "$BASE_DIR/docs/plugin.video.aiostreams/addon.xml"
-        "$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    )
-
-    local zip_dest1="$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/plugin.video.aiostreams-$new_version.zip"
-    local zip_dest2="$BASE_DIR/docs/plugin.video.aiostreams/plugin.video.aiostreams-$new_version.zip"
-
-    echo -e "\n${CYAN}[1/4] Updating version numbers...${NC}"
-    for xml_path in "${xml_paths[@]}"; do
-        update_kodi_file "$xml_path" "$old_version" "$new_version"
-    done
-
-    echo -e "\n${CYAN}[2/4] Building plugin ZIP files...${NC}"
-    build_plugin_zip "$zip_dest1" "$BASE_DIR/plugin.video.aiostreams"
-    build_plugin_zip "$zip_dest2" "$BASE_DIR/plugin.video.aiostreams"
-    
-    write_md5 "$zip_dest1" "$zip_dest1.md5"
-    write_md5 "$zip_dest2" "$zip_dest2.md5"
-
-    local repo_xml="$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    local repo_version=$(grep -m 1 "id=\"repository.aiostreams\"" "$repo_xml" | sed -n 's/.*version="\([^"]*\)".*/\1/p')
-    if [[ -z "$repo_version" ]]; then repo_version="1.0.0"; fi
-
-    echo -e "\n${CYAN}[3/4] Rebuilding repository ZIPs...${NC}"
-    local repo_zip_id_dir="$BASE_DIR/docs/repository.aiostreams/zips/repository.aiostreams"
-    mkdir -p "$repo_zip_id_dir"
-    
-    build_repository_zip "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams"
-    local internal_repo_zip="$repo_zip_id_dir/repository.aiostreams-$repo_version.zip"
-    cp "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$internal_repo_zip"
-    
-    write_md5 "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip.md5"
-    write_md5 "$internal_repo_zip" "$internal_repo_zip.md5"
-    
-    echo -e "  ${GREEN}[+]${GRAY} Copying assets to repository directory${NC}"
-    mkdir -p "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/"
-    cp "$BASE_DIR/plugin.video.aiostreams/resources/icon.png" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/" 2>/dev/null || true
-    cp "$BASE_DIR/plugin.video.aiostreams/resources/fanart.jpg" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/" 2>/dev/null || true
-    cp "$BASE_DIR/plugin.video.aiostreams/addon.xml" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/addon.xml"
-
-    for f in "$repo_zip_id_dir"/repository.aiostreams-*.zip; do
-        if [[ -f "$f" && "$f" != "$internal_repo_zip" ]]; then
-            rm -f "$f" "$f.md5"
-            echo -e "  ${GREEN}[+]${GRAY} Deleted old repo version: $(basename "$f")${NC}"
-        fi
-    done
-
-    echo -e "\n${CYAN}[4/4] Checking for old version files...${NC}"
-    local old_zip_path1="$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.aiostreams/plugin.video.aiostreams-$old_version.zip"
-    local old_zip_path2="$BASE_DIR/docs/plugin.video.aiostreams/plugin.video.aiostreams-$old_version.zip"
-
-    if [[ -f "$old_zip_path1" ]] || [[ -f "$old_zip_path2" ]]; then
-        ask "Found old plugin version $old_version. Delete old ZIP files? (y/n) " cleanup
-        if [[ "$cleanup" == "y" ]] || [[ "$cleanup" == "Y" ]]; then
-            if [[ -f "$old_zip_path1" ]]; then
-                rm -f "$old_zip_path1" "$old_zip_path1.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path1${NC}"
-            fi
-            if [[ -f "$old_zip_path2" ]]; then
-                rm -f "$old_zip_path2" "$old_zip_path2.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path2${NC}"
-            fi
-        fi
-    fi
-
-    echo -e "\n${GREEN}[+] Plugin update complete: $new_version${NC}"
-}
-
-update_imvdb() {
-    local old_version="$1"
-    local new_version="$2"
-
-    echo -e "\n${CYAN}========================================${NC}"
-    echo -e "${CYAN}Updating IMVDb Plugin: $old_version -> $new_version${NC}"
-    echo -e "${CYAN}========================================${NC}"
-
-    local xml_paths=(
-        "$BASE_DIR/plugin.video.imvdb/addon.xml"
-        "$BASE_DIR/docs/plugin.video.imvdb/addon.xml"
-        "$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    )
-
-    local zip_dest1="$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/plugin.video.imvdb-$new_version.zip"
-    local zip_dest2="$BASE_DIR/docs/plugin.video.imvdb/plugin.video.imvdb-$new_version.zip"
-
-    echo -e "\n${CYAN}[1/4] Updating version numbers...${NC}"
-    for xml_path in "${xml_paths[@]}"; do
-        update_kodi_file "$xml_path" "$old_version" "$new_version"
-    done
-
-    echo -e "\n${CYAN}[2/4] Building plugin ZIP files...${NC}"
-    build_plugin_zip "$zip_dest1" "$BASE_DIR/plugin.video.imvdb"
-    build_plugin_zip "$zip_dest2" "$BASE_DIR/plugin.video.imvdb"
-    
-    write_md5 "$zip_dest1" "$zip_dest1.md5"
-    write_md5 "$zip_dest2" "$zip_dest2.md5"
-    
-    local repo_xml="$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    local repo_version=$(grep -m 1 "id=\"repository.aiostreams\"" "$repo_xml" | sed -n 's/.*version="\([^"]*\)".*/\1/p')
-    if [[ -z "$repo_version" ]]; then repo_version="1.0.0"; fi
-
-    echo -e "\n${CYAN}[3/4] Rebuilding repository ZIPs...${NC}"
-    local repo_zip_id_dir="$BASE_DIR/docs/repository.aiostreams/zips/repository.aiostreams"
-    mkdir -p "$repo_zip_id_dir"
-    
-    build_repository_zip "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams"
-    local internal_repo_zip="$repo_zip_id_dir/repository.aiostreams-$repo_version.zip"
-    cp "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$internal_repo_zip"
-    
-    write_md5 "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip.md5"
-    write_md5 "$internal_repo_zip" "$internal_repo_zip.md5"
-
-    echo -e "  ${GREEN}[+]${GRAY} Copying assets to repository directory${NC}"
-    mkdir -p "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/"
-    cp "$BASE_DIR/plugin.video.imvdb/icon.png" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/" 2>/dev/null || true
-    cp "$BASE_DIR/plugin.video.imvdb/fanart.jpg" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/" 2>/dev/null || true
-    cp "$BASE_DIR/plugin.video.imvdb/addon.xml" "$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/addon.xml"
-
-    echo -e "\n${CYAN}[4/4] Checking for old version files...${NC}"
-    local old_zip_path1="$BASE_DIR/docs/repository.aiostreams/zips/plugin.video.imvdb/plugin.video.imvdb-$old_version.zip"
-    local old_zip_path2="$BASE_DIR/docs/plugin.video.imvdb/plugin.video.imvdb-$old_version.zip"
-
-    if [[ -f "$old_zip_path1" ]] || [[ -f "$old_zip_path2" ]]; then
-        ask "Found old IMVDb plugin version $old_version. Delete old ZIP files? (y/n) " cleanup
-        if [[ "$cleanup" == "y" ]] || [[ "$cleanup" == "Y" ]]; then
-            if [[ -f "$old_zip_path1" ]]; then
-                rm -f "$old_zip_path1" "$old_zip_path1.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path1${NC}"
-            fi
-            if [[ -f "$old_zip_path2" ]]; then
-                rm -f "$old_zip_path2" "$old_zip_path2.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path2${NC}"
-            fi
-        fi
-    fi
-
-    echo -e "\n${GREEN}[+] IMVDb update complete: $new_version${NC}"
-}
-
-update_onboarding() {
-    local old_version="$1"
-    local new_version="$2"
-
-    echo -e "\n${CYAN}========================================${NC}"
-    echo -e "${CYAN}Updating Onboarding Wizard: $old_version -> $new_version${NC}"
-    echo -e "${CYAN}========================================${NC}"
-
-    local xml_paths=(
-        "$BASE_DIR/script.aiodi.onboarding/addon.xml"
-        "$BASE_DIR/docs/script.aiodi.onboarding/addon.xml"
-        "$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    )
-
-    local zip_dest1="$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/script.aiodi.onboarding-$new_version.zip"
-    local zip_dest2="$BASE_DIR/docs/script.aiodi.onboarding/script.aiodi.onboarding-$new_version.zip"
-
-    echo -e "\n${CYAN}[1/4] Updating version numbers...${NC}"
-    for xml_path in "${xml_paths[@]}"; do
-        update_kodi_file "$xml_path" "$old_version" "$new_version"
-    done
-
-    echo -e "\n${CYAN}[2/4] Building addon ZIP files...${NC}"
-    build_onboarding_zip "$zip_dest1" "$BASE_DIR/script.aiodi.onboarding"
-    build_onboarding_zip "$zip_dest2" "$BASE_DIR/script.aiodi.onboarding"
-    
-    write_md5 "$zip_dest1" "$zip_dest1.md5"
-    write_md5 "$zip_dest2" "$zip_dest2.md5"
-    
-    local repo_xml="$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    local repo_version=$(grep -m 1 "id=\"repository.aiostreams\"" "$repo_xml" | sed -n 's/.*version="\([^"]*\)".*/\1/p')
-    if [[ -z "$repo_version" ]]; then repo_version="1.0.0"; fi
-
-    echo -e "\n${CYAN}[3/4] Rebuilding repository ZIPs...${NC}"
-    local repo_zip_id_dir="$BASE_DIR/docs/repository.aiostreams/zips/repository.aiostreams"
-    mkdir -p "$repo_zip_id_dir"
-    
-    build_repository_zip "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams"
-    local internal_repo_zip="$repo_zip_id_dir/repository.aiostreams-$repo_version.zip"
-    cp "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$internal_repo_zip"
-    
-    write_md5 "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip.md5"
-    write_md5 "$internal_repo_zip" "$internal_repo_zip.md5"
-
-    echo -e "  ${GREEN}[+]${GRAY} Copying assets to repository directory${NC}"
-    mkdir -p "$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/"
-    cp "$BASE_DIR/script.aiodi.onboarding/icon.png" "$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/" 2>/dev/null || true
-    cp "$BASE_DIR/script.aiodi.onboarding/fanart.jpg" "$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/" 2>/dev/null || true
-    cp "$BASE_DIR/script.aiodi.onboarding/addon.xml" "$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/addon.xml"
-
-    echo -e "\n${CYAN}[4/4] Checking for old version files...${NC}"
-    local old_zip_path1="$BASE_DIR/docs/repository.aiostreams/zips/script.aiodi.onboarding/script.aiodi.onboarding-$old_version.zip"
-    local old_zip_path2="$BASE_DIR/docs/script.aiodi.onboarding/script.aiodi.onboarding-$old_version.zip"
-
-    if [[ -f "$old_zip_path1" ]] || [[ -f "$old_zip_path2" ]]; then
-        ask "Found old Onboarding version $old_version. Delete old ZIP files? (y/n) " cleanup
-        if [[ "$cleanup" == "y" ]] || [[ "$cleanup" == "Y" ]]; then
-            if [[ -f "$old_zip_path1" ]]; then
-                rm -f "$old_zip_path1" "$old_zip_path1.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path1${NC}"
-            fi
-            if [[ -f "$old_zip_path2" ]]; then
-                rm -f "$old_zip_path2" "$old_zip_path2.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path2${NC}"
-            fi
-        fi
-    fi
-
-    echo -e "\n${GREEN}[+] Onboarding update complete: $new_version${NC}"
-}
-
-update_skin() {
-    local old_version="$1"
-    local new_version="$2"
-
-    echo -e "\n${CYAN}========================================${NC}"
-    echo -e "${CYAN}Updating Skin: $old_version -> $new_version${NC}"
-    echo -e "${CYAN}========================================${NC}"
-
-    local xml_paths=(
-        "$BASE_DIR/skin.AIODI/addon.xml"
-        "$BASE_DIR/docs/skin.AIODI/addon.xml"
-        "$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    )
-
-    local zip_dest_repo="$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/skin.AIODI-$new_version.zip"
-    local zip_dest_docs="$BASE_DIR/docs/skin.AIODI/skin.AIODI-$new_version.zip"
-
-    echo -e "\n${CYAN}[1/4] Updating version numbers...${NC}"
-    for xml_path in "${xml_paths[@]}"; do
-        update_kodi_file "$xml_path" "$old_version" "$new_version"
-    done
-
-    echo -e "\n${CYAN}[2/4] Building skin ZIP file...${NC}"
-    build_skin_zip "$zip_dest_repo" "$BASE_DIR/skin.AIODI"
-    cp "$zip_dest_repo" "$zip_dest_docs"
-
-    write_md5 "$zip_dest_repo" "$zip_dest_repo.md5"
-    write_md5 "$zip_dest_docs" "$zip_dest_docs.md5"
-
-    echo -e "  ${GREEN}[+]${GRAY} Copying assets to repository directory${NC}"
-    mkdir -p "$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/"
-    cp "$BASE_DIR/skin.AIODI/resources/icon.png" "$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/" 2>/dev/null || true
-    cp "$BASE_DIR/skin.AIODI/resources/fanart.jpg" "$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/" 2>/dev/null || true
-    cp "$BASE_DIR/skin.AIODI/addon.xml" "$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/addon.xml"
-
-    local repo_xml="$BASE_DIR/docs/repository.aiostreams/addon.xml"
-    local repo_version=$(grep -m 1 "id=\"repository.aiostreams\"" "$repo_xml" | sed -n 's/.*version="\([^"]*\)".*/\1/p')
-    if [[ -z "$repo_version" ]]; then repo_version="1.0.0"; fi
-
-    echo -e "\n${CYAN}[3/4] Rebuilding repository ZIPs...${NC}"
-    local repo_zip_id_dir="$BASE_DIR/docs/repository.aiostreams/zips/repository.aiostreams"
-    mkdir -p "$repo_zip_id_dir"
-    build_repository_zip "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams"
-    local internal_repo_zip="$repo_zip_id_dir/repository.aiostreams-$repo_version.zip"
-    cp "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$internal_repo_zip"
-
-    write_md5 "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip" "$BASE_DIR/docs/repository.aiostreams-1.0.0.zip.md5"
-    write_md5 "$internal_repo_zip" "$internal_repo_zip.md5"
-    
-    for f in "$repo_zip_id_dir"/repository.aiostreams-*.zip; do
-        if [[ -f "$f" && "$f" != "$internal_repo_zip" ]]; then
-            rm -f "$f" "$f.md5"
-            echo -e "  ${GREEN}[+]${GRAY} Deleted old repo version: $(basename "$f")${NC}"
-        fi
-    done
-
-    echo -e "\n${CYAN}[4/4] Checking for old version files...${NC}"
-    local old_zip_path_repo="$BASE_DIR/docs/repository.aiostreams/zips/skin.AIODI/skin.AIODI-$old_version.zip"
-    local old_zip_path_docs="$BASE_DIR/docs/skin.AIODI/skin.AIODI-$old_version.zip"
-
-    if [[ -f "$old_zip_path_repo" ]] || [[ -f "$old_zip_path_docs" ]]; then
-        ask "Found old skin version $old_version. Delete old ZIP files? (y/n) " cleanup
-        if [[ "$cleanup" == "y" ]] || [[ "$cleanup" == "Y" ]]; then
-            if [[ -f "$old_zip_path_repo" ]]; then
-                rm -f "$old_zip_path_repo" "$old_zip_path_repo.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path_repo${NC}"
-            fi
-            if [[ -f "$old_zip_path_docs" ]]; then
-                rm -f "$old_zip_path_docs" "$old_zip_path_docs.md5"
-                echo -e "  ${GREEN}[+]${GRAY} Deleted: $old_zip_path_docs${NC}"
-            fi
-        fi
-    fi
-
-    echo -e "\n${GREEN}[+] Skin update complete: $new_version${NC}"
-}
-
-
-push_to_git() {
-    echo -e "\n${CYAN}[*] Pushing changes to main branch...${NC}"
-    git add .
-    local plugin_v=$(get_source_version "$BASE_DIR/plugin.video.aiostreams/addon.xml")
-    local skin_v=$(get_source_version "$BASE_DIR/skin.AIODI/addon.xml")
-    git commit -m "Repository Update: Plugin $plugin_v, Skin $skin_v"
-    git push origin main
-    if [ $? -eq 0 ]; then
-        echo -e "  ${GREEN}[+]${GRAY} Successfully pushed to main branch${NC}"
-    else
-        echo -e "  ${RED}[!] Error: Failed to push to main branch${NC}"
-    fi
-}
-
-# Main Script
-clear
-echo -e "\n${CYAN}========================================${NC}"
-echo -e "${CYAN}AIOStreams Repository Update Tool${NC}"
-echo -e "${CYAN}========================================${NC}"
-
-# Detect current versions
-echo -e "\n${YELLOW}Detecting current versions...${NC}"
-
-plugin_version=$(get_source_version "$BASE_DIR/plugin.video.aiostreams/addon.xml")
-imvdb_version=$(get_source_version "$BASE_DIR/plugin.video.imvdb/addon.xml")
-script_version=$(get_source_version "$BASE_DIR/script.aiodi.onboarding/addon.xml")
-skin_version=$(get_source_version "$BASE_DIR/skin.AIODI/addon.xml")
-
-if [[ -n "$plugin_version" ]]; then
-    echo -e "  ${WHITE}AIOStreams Plugin version: $plugin_version${NC}"
-else
-    echo -e "  ${GRAY}AIOStreams Plugin version: Not found${NC}"
+if [[ -z "$addon_version" || -z "$repository_version" ]]; then
+    echo 'Could not determine an add-on or repository version.' >&2
+    exit 1
 fi
 
-if [[ -n "$imvdb_version" ]]; then
-    echo -e "  ${WHITE}IMVDb Plugin version: $imvdb_version${NC}"
-else
-    echo -e "  ${GRAY}IMVDb Plugin version: Not found${NC}"
-fi
+rm -rf "$ZIPS_DIR/$ADDON_ID" "$ZIPS_DIR/$REPOSITORY_ID"
+rm -f "$PAGES_DIR/$REPOSITORY_ID-"*.zip "$PAGES_DIR/$REPOSITORY_ID-"*.zip.md5
+mkdir -p "$ZIPS_DIR/$ADDON_ID" "$ZIPS_DIR/$REPOSITORY_ID"
 
-if [[ -n "$script_version" ]]; then
-    echo -e "  ${WHITE}Onboarding Wizard version: $script_version${NC}"
-else
-    echo -e "  ${GRAY}Onboarding Wizard version: Not found${NC}"
-fi
+addon_zip="$ZIPS_DIR/$ADDON_ID/$ADDON_ID-$addon_version.zip"
+build_zip "$addon_zip" "$ADDON_ID" "$BASE_DIR/$ADDON_ID"
+write_md5 "$addon_zip"
+cp "$ADDON_XML" "$ZIPS_DIR/$ADDON_ID/addon.xml"
+cp "$BASE_DIR/$ADDON_ID/resources/icon.png" "$ZIPS_DIR/$ADDON_ID/icon.png"
+cp "$BASE_DIR/$ADDON_ID/resources/fanart.jpg" "$ZIPS_DIR/$ADDON_ID/fanart.jpg"
 
-if [[ -n "$skin_version" ]]; then
-    echo -e "  ${WHITE}Skin current version: $skin_version${NC}"
-else
-    echo -e "  ${GRAY}Skin version: Not found${NC}"
-fi
+repository_zip="$PAGES_DIR/$REPOSITORY_ID-$repository_version.zip"
+build_repository_zip "$repository_zip"
+write_md5 "$repository_zip"
+cp "$repository_zip" "$ZIPS_DIR/$REPOSITORY_ID/$REPOSITORY_ID-$repository_version.zip"
+write_md5 "$ZIPS_DIR/$REPOSITORY_ID/$REPOSITORY_ID-$repository_version.zip"
 
-echo -e "\n${CYAN}========================================${NC}"
-echo -e "${YELLOW}What would you like to update?${NC}"
-echo -e "  ${WHITE}1. AIOStreams Plugin only${NC}"
-echo -e "  ${WHITE}2. Skin only${NC}"
-echo -e "  ${WHITE}3. IMVDb Plugin only${NC}"
-echo -e "  ${WHITE}4. Onboarding Wizard only${NC}"
-echo -e "  ${WHITE}5. All Components${NC}"
-echo -e "${CYAN}========================================${NC}"
+{
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<addons>'
+    sed -n '/<addon/,/<\/addon>/p' "$REPOSITORY_XML"
+    printf '\n'
+    sed -n '/<addon/,/<\/addon>/p' "$ADDON_XML"
+    printf '%s\n' '</addons>'
+} > "$ZIPS_DIR/addons.xml"
+write_md5 "$ZIPS_DIR/addons.xml"
 
-ask $'\nEnter your choice (1, 2, 3, 4, or 5): ' choice
+python3 -c 'from pathlib import Path; import xml.etree.ElementTree as ET; [ET.parse(path) for path in (Path("docs/repository.aiostreams/addon.xml"), Path("docs/repository.aiostreams/zips/addons.xml"), Path("plugin.video.aiostreams/addon.xml"))]'
+unzip -tqq "$addon_zip"
+unzip -tqq "$repository_zip"
+verify_md5 "$addon_zip"
+verify_md5 "$repository_zip"
+verify_md5 "$ZIPS_DIR/$REPOSITORY_ID/$REPOSITORY_ID-$repository_version.zip"
+verify_md5 "$ZIPS_DIR/addons.xml"
 
-case "$choice" in
-    1)
-        if [[ -z "$plugin_version" ]]; then
-            echo -e "\n${RED}[!] Error: Could not detect plugin version${NC}"
-            exit 1
-        fi
-        new_plugin_version=$(increment_version "$plugin_version")
-        echo -e "\n${YELLOW}Plugin will be updated: $plugin_version -> $new_plugin_version${NC}"
-        ask "Continue? (y/n) " confirm
-        if [[ "$confirm" == "y" ]] || [[ "$confirm" == "Y" ]]; then
-            update_plugin "$plugin_version" "$new_plugin_version"
-            rebuild_addons_xml
-        fi
-        ;;
-    2)
-        if [[ -z "$skin_version" ]]; then
-            echo -e "\n${RED}[!] Error: Could not detect skin version${NC}"
-            exit 1
-        fi
-        new_skin_version=$(increment_version "$skin_version")
-        echo -e "\n${YELLOW}Skin will be updated: $skin_version -> $new_skin_version${NC}"
-        ask "Continue? (y/n) " confirm
-        if [[ "$confirm" == "y" ]] || [[ "$confirm" == "Y" ]]; then
-            update_skin "$skin_version" "$new_skin_version"
-            rebuild_addons_xml
-        fi
-        ;;
-    3)
-        if [[ -z "$imvdb_version" ]]; then
-            echo -e "\n${RED}[!] Error: Could not detect IMVDb plugin version${NC}"
-            exit 1
-        fi
-        new_imvdb_version=$(increment_version "$imvdb_version")
-        echo -e "\n${YELLOW}IMVDb Plugin will be updated: $imvdb_version -> $new_imvdb_version${NC}"
-        ask "Continue? (y/n) " confirm
-        if [[ "$confirm" == "y" ]] || [[ "$confirm" == "Y" ]]; then
-            update_imvdb "$imvdb_version" "$new_imvdb_version"
-            rebuild_addons_xml
-        fi
-        ;;
-    4)
-        if [[ -z "$script_version" ]]; then
-            echo -e "\n${RED}[!] Error: Could not detect Onboarding Wizard version${NC}"
-            exit 1
-        fi
-        new_script_version=$(increment_version "$script_version")
-        echo -e "\n${YELLOW}Onboarding Wizard will be updated: $script_version -> $new_script_version${NC}"
-        ask "Continue? (y/n) " confirm
-        if [[ "$confirm" == "y" ]] || [[ "$confirm" == "Y" ]]; then
-            update_onboarding "$script_version" "$new_script_version"
-            rebuild_addons_xml
-        fi
-        ;;
-    5)
-        if [[ -z "$plugin_version" ]] || [[ -z "$skin_version" ]] || [[ -z "$imvdb_version" ]] || [[ -z "$script_version" ]]; then
-            echo -e "\n${RED}[!] Error: Could not detect all versions${NC}"
-            exit 1
-        fi
-        new_plugin_version=$(increment_version "$plugin_version")
-        new_skin_version=$(increment_version "$skin_version")
-        new_imvdb_version=$(increment_version "$imvdb_version")
-        new_script_version=$(increment_version "$script_version")
-
-        echo -e "\n${YELLOW}Updates planned:${NC}"
-        echo -e "  ${WHITE}AIOStreams Plugin: $plugin_version -> $new_plugin_version${NC}"
-        echo -e "  ${WHITE}IMVDb Plugin: $imvdb_version -> $new_imvdb_version${NC}"
-        echo -e "  ${WHITE}Onboarding Wizard: $script_version -> $new_script_version${NC}"
-        echo -e "  ${WHITE}Skin: $skin_version -> $new_skin_version${NC}"
-
-        ask $'\nContinue? (y/n) ' confirm
-        if [[ "$confirm" == "y" ]] || [[ "$confirm" == "Y" ]]; then
-            update_plugin "$plugin_version" "$new_plugin_version"
-            update_imvdb "$imvdb_version" "$new_imvdb_version"
-            update_onboarding "$script_version" "$new_script_version"
-            update_skin "$skin_version" "$new_skin_version"
-            rebuild_addons_xml
-        fi
-        ;;
-    *)
-        echo -e "\n${RED}[!] Invalid choice${NC}"
-        exit 1
-        ;;
-esac
-
-echo -e "\n${CYAN}========================================${NC}"
-echo -e "${GREEN}[+] Update process complete!${NC}"
-echo -e "${CYAN}========================================${NC}"
-
-echo -e "\n${YELLOW}Would you like to push these changes to GitHub main branch? (y/n)${NC}"
-ask "Choice: " push_confirm
-if [[ "$push_confirm" == "y" ]] || [[ "$push_confirm" == "Y" ]]; then
-    push_to_git
-fi
-
-echo ""
+echo "Built $ADDON_ID $addon_version and $REPOSITORY_ID $repository_version."

@@ -17,7 +17,14 @@ def media_action_params(action, media, **extra):
     media = media if isinstance(media, MediaRef) else MediaRef.from_meta(media)
     params = dict(extra)
     if action in ('show_seasons', 'show_episodes', 'browse_show'):
+        params.setdefault('content_type', media.content_type)
         params.setdefault('meta_id', media.navigation_id)
+        if media.playable_id:
+            params.setdefault('media_id', media.playable_id)
+        if media.imdb_id:
+            params.setdefault('imdb_id', media.imdb_id)
+        if media.tmdb_id:
+            params.setdefault('tmdb_id', media.tmdb_id)
     elif action in ('play', 'play_first', 'select_stream'):
         params.setdefault('content_type', media.content_type)
         # These values have different consumers.  Keep each identity on the
@@ -28,6 +35,8 @@ def media_action_params(action, media, **extra):
             params.setdefault('imdb_id', media.imdb_id)
         if media.tmdb_id:
             params.setdefault('tmdb_id', media.tmdb_id)
+    if media.origin_fingerprint:
+        params.setdefault('origin_fingerprint', media.origin_fingerprint)
     params.setdefault('title', media.title)
     if media.poster:
         params.setdefault('poster', media.poster)

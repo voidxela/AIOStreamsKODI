@@ -32,7 +32,8 @@ plugin.video.aiostreams/
 ├── resources/
 │   ├── settings.xml      # User configuration schema
 │   ├── lib/
-│   │   ├── globals.py    # Singleton global state manager
+│   │   ├── globals.py    # Kodi runtime state manager
+│   │   ├── plugin_runtime.py # Configured client and legacy runtime bridge
 │   │   ├── routing.py    # Small explicit parameter normalizer and dispatcher
 │   │   ├── actions/      # Parsed-parameter Kodi action modules
 │   │   │   ├── browse.py       # Menus, catalogs, widgets, seasons, episodes
@@ -40,23 +41,23 @@ plugin.video.aiostreams/
 │   │   │   ├── playback.py     # Stream selection, retries, and playback
 │   │   │   ├── trakt.py        # Trakt menus, lists, and mutations
 │   │   │   └── maintenance.py  # Settings, cache, and database maintenance
-│   │   ├── monitor.py    # Playback monitoring & autoplay
+│   │   ├── monitor.py    # Playback monitoring
 │   │   ├── streams.py    # Stream quality & reliability management
 │   │   ├── ui_helpers.py # UI formatting & colors
 │   │   ├── cache.py      # Caching system
-│   │   ├── network.py    # HTTP requests
 │   │   ├── aiostreams_client.py # Configured AIOStreams/Stremio API client
 │   │   ├── media.py      # Canonical MediaRef identity normalization
 │   │   ├── items.py      # Shared list-item presentation and context menus
+│   │   ├── native_favorites.py # Read-only Kodi Favorites adapter and poller
+│   │   ├── user_state.py # Recent-search SQLite store
+│   │   ├── stream_utils.py # Canonical stream compatibility helpers
 │   │   ├── trakt.py      # Trakt API integration
 │   │   ├── filters.py    # Content filtering
-│   │   ├── autoplay.py   # Autoplay next episode logic
 │   │   ├── database/     # Local database for Trakt sync
 │   │   │   └── trakt_sync/
 │   │   └── gui/          # Custom dialogs & windows
 │   │       └── windows/
-│   │           ├── multiline_source_select.py
-│   │           └── autoplay_next.py
+│   │           └── multiline_source_select.py
 │   └── skins/            # Kodi skin XML files
 │       └── Default/1080i/
 │           ├── aiostreams-source-select.xml
@@ -122,6 +123,34 @@ ACTION_REGISTRY = {
 - **`select_stream`** - Always shows selection dialog (used by TMDBHelper fallback)
 
 Widget-originated Trakt and catalog requests use this same action table; they do not maintain a second manual dispatch chain.
+
+### 1.1 Search history and native favorites
+
+`actions/search.py` records only non-empty submitted searches in the profile-local
+`user_state.db`. A record contains its query and selected scope (`all`, `movies`,
+or `shows`), so selecting it reruns exactly that search. There is deliberately no
+global “last search scope”: the home menu already offers explicit All, Movies,
+and Series entry points.
+
+An All search runs movie and series requests in a bounded two-worker executor.
+Results are rendered in stable movie-then-series order and deduplicated within
+each type. A failure in one scope leaves results from the other visible; only a
+two-scope failure is reported as a failed search. Workers never update Kodi UI,
+and cancellation closes the progress dialog before their cleanup completes.
+
+Kodi's native Favorites store is the sole source of truth for favorites.
+`native_favorites.py` reads only durable AIOStreams movie/show routes through
+`Favourites.GetFavourites`; it never writes a local favorite, snapshot, or
+reconciliation cache. Kodi does not notify this add-on when that store changes,
+so the service polls on each five-second tick only while this Favorites folder
+is open and calls `Container.Refresh` only after a visible change. This is an
+intentional UI behavior, not eventual reconciliation.
+
+Saved media routes carry a configuration fingerprint. When a favorite is opened
+under a different backend, routing uses a validated IMDb ID or an explicitly
+namespaced `tmdb:<id>` metadata ID while retaining the requested movie/series
+type. Opaque or malformed IDs are shown as unavailable rather than sent to the
+wrong backend.
 
 ### 2. Trakt Integration
 
@@ -860,7 +889,3 @@ This addon is powered by:
 - **[AIOMetadata](https://github.com/cedya77/aiometadata)** by [Cedya77](https://github.com/cedya77) - Metadata and catalog provider for rich content information
 
 Special thanks to the Kodi community for testing and feedback!
-
-**Support the ecosystem:**
-
-[<img src="https://github.com/shiggsy365/AIOStreamsKODI/blob/main/.github/support_me_on_kofi_red.png?raw=true">](https://ko-fi.com/shiggsy365)
