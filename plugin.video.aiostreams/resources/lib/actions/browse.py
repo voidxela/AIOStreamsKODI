@@ -35,9 +35,10 @@ def index(params, dependencies):
     xbmcplugin.setPluginCategory(dependencies.handle, 'AIOStreams')
     xbmcplugin.setContent(dependencies.handle, 'videos')
     entries = (
-        ('[B]Search (Movies & TV Shows)[/B]', 'search', 'both', 'DefaultAddonsSearch.png'),
+        ('[B]Search All[/B]', 'search', 'both', 'DefaultAddonsSearch.png'),
         ('[B]Search Movies[/B]', 'search', 'movie', 'DefaultMovies.png'),
-        ('[B]Search TV Shows[/B]', 'search', 'series', 'DefaultTVShows.png'),
+        ('[B]Search Series[/B]', 'search', 'series', 'DefaultTVShows.png'),
+        ('Recent Searches', 'recent_searches', None, 'DefaultAddonsSearch.png'),
         ('Movie Lists', 'movie_lists', None, 'DefaultMovies.png'),
         ('Series Lists', 'series_lists', None, 'DefaultTVShows.png'),
     )

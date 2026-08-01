@@ -166,7 +166,7 @@ class PluginRouteTests(unittest.TestCase):
             self.assertTrue(addon.ACTION_REGISTRY)
             self.assertTrue(all(callable(handler) for handler in addon.ACTION_REGISTRY.values()))
             addon.router({})
-            self.assertEqual(5, len(directory_items))
+            self.assertEqual(6, len(directory_items))
         finally:
             sys.argv = original_argv
             sys.modules.pop('addon', None)

@@ -18,6 +18,7 @@ try:
         create_listitem_with_context as present_media_list_item,
     )
     from resources.lib.media import MediaRef
+    from resources.lib.user_state import UserState
     from resources.lib.globals import g
     from resources.lib.routing import dispatch
     from resources.lib.actions import search as search_actions
@@ -148,6 +149,7 @@ def _search_dependencies():
         get_url=get_url,
         create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
+        user_state=UserState(),
     )
 
 
@@ -319,6 +321,9 @@ ACTION_REGISTRY = {
     'index': _default_action,
     'search': _bind_action(search_actions.search, _search_dependencies),
     'search_tab': _bind_action(search_actions.search, _search_dependencies),
+    'recent_searches': _bind_action(search_actions.recent_searches, _search_dependencies),
+    'remove_recent_search': _bind_action(search_actions.remove_recent_search, _search_dependencies),
+    'clear_recent_searches': _bind_action(search_actions.clear_recent_searches, _search_dependencies),
     'info': _bind_action(browse_actions.action_info, _info_dependencies),
     'clear_cache': _bind_action(maintenance_actions.clear_cache, _maintenance_dependencies),
 

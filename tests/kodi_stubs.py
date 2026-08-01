@@ -11,6 +11,8 @@ def install():
     xbmc.LOGWARNING = 2
     xbmc.LOGERROR = 3
     xbmc.log = lambda *args, **kwargs: None
+    xbmc.executebuiltin = lambda *args, **kwargs: None
+    xbmc.getCondVisibility = lambda *args, **kwargs: False
 
     xbmcplugin = types.ModuleType('xbmcplugin')
     xbmcgui = types.ModuleType('xbmcgui')
@@ -54,6 +56,7 @@ def install():
             self.properties = {}
             self.art = {}
             self.info_tag = InfoTagVideo()
+            self.context_menu = []
 
         def getVideoInfoTag(self):
             return self.info_tag
@@ -63,6 +66,9 @@ def install():
 
         def setArt(self, art):
             self.art.update(art)
+
+        def addContextMenuItems(self, items):
+            self.context_menu.extend(items)
 
     xbmcgui.ListItem = ListItem
     sys.modules.update({
