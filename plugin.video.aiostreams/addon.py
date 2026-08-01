@@ -77,6 +77,12 @@ fetch_metadata_parallel = plugin_runtime.fetch_metadata_parallel
 
 _aiostreams_client = None
 _aiostreams_client_config = None
+USER_STATE = UserState() if HAS_NEW_MODULES else None
+if USER_STATE and ADDON.getAddonInfo('profile'):
+    try:
+        USER_STATE.initialize()
+    except Exception as error:
+        xbmc.log(f'[AIOStreams] Could not initialize user state: {type(error).__name__}', xbmc.LOGWARNING)
 
 
 def _trakt_item_state(media):
@@ -149,7 +155,7 @@ def _search_dependencies():
         get_url=get_url,
         create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
-        user_state=UserState(),
+        user_state=USER_STATE,
     )
 
 
@@ -335,6 +341,7 @@ ACTION_REGISTRY = {
     'configured_widget': _bind_action(browse_actions.configured_widget, _widget_dependencies),
     'catalog_genres': _bind_action(browse_actions.list_catalog_genres, _browse_dependencies),
     'browse_catalog': _bind_action(browse_actions.browse_catalog, _browse_dependencies),
+    'favorites': _bind_action(browse_actions.favorites, _browse_dependencies),
 
     # TV Show navigation
     'show_seasons': _bind_action(browse_actions.show_seasons, _browse_dependencies),

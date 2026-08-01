@@ -9,6 +9,7 @@ import xbmcplugin
 
 from ..items import media_action_params
 from ..media import MediaRef
+from ..native_favorites import list_aiostreams_favorites
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class BrowseDependencies:
     apply_media_identity: object
     create_listitem: object
     origin_fingerprint: object = None
+    get_native_favorites: object = list_aiostreams_favorites
 
 
 def index(params, dependencies):
@@ -35,6 +37,7 @@ def index(params, dependencies):
     xbmcplugin.setPluginCategory(dependencies.handle, 'AIOStreams')
     xbmcplugin.setContent(dependencies.handle, 'videos')
     entries = (
+        ('[B]Favorites[/B]', 'favorites', None, 'DefaultFavourites.png'),
         ('[B]Search All[/B]', 'search', 'both', 'DefaultAddonsSearch.png'),
         ('[B]Search Movies[/B]', 'search', 'movie', 'DefaultMovies.png'),
         ('[B]Search Series[/B]', 'search', 'series', 'DefaultTVShows.png'),
@@ -51,6 +54,44 @@ def index(params, dependencies):
         list_item.setArt({'icon': icon})
         xbmcplugin.addDirectoryItem(dependencies.handle, dependencies.get_url(**route), list_item, True)
     xbmcplugin.endOfDirectory(dependencies.handle)
+
+
+def favorites(params, dependencies):
+    """Render Kodi-owned AIOStreams movie and show favorites only."""
+    xbmcplugin.setPluginCategory(dependencies.handle, 'Favorites')
+    xbmcplugin.setContent(dependencies.handle, 'videos')
+    try:
+        entries = dependencies.get_native_favorites()
+    except Exception as error:
+        xbmc.log(f'[AIOStreams] Could not read Kodi favorites: {type(error).__name__}', xbmc.LOGWARNING)
+        entries = []
+
+    for favorite in entries:
+        list_item = xbmcgui.ListItem(label=favorite.title)
+        list_item.getVideoInfoTag().setTitle(favorite.title)
+        if favorite.thumbnail:
+            list_item.setArt({'thumb': favorite.thumbnail, 'poster': favorite.thumbnail})
+        if not favorite.is_folder:
+            list_item.setProperty('IsPlayable', 'true')
+        xbmcplugin.addDirectoryItem(
+            dependencies.handle, favorite.target, list_item, favorite.is_folder,
+        )
+
+    if not entries:
+        xbmcplugin.addDirectoryItem(
+            dependencies.handle, '', xbmcgui.ListItem(label='[COLOR gray]No favorites yet[/COLOR]'), False,
+        )
+    xbmcplugin.endOfDirectory(dependencies.handle)
+    return None
+
+
+def _route_metadata_id(params, dependencies):
+    """Prefer a durable external ID when a saved route changes backend."""
+    metadata_id = params.get('meta_id')
+    saved_origin = params.get('origin_fingerprint')
+    if saved_origin and dependencies.origin_fingerprint and saved_origin != dependencies.origin_fingerprint:
+        return params.get('imdb_id') or params.get('tmdb_id') or metadata_id
+    return metadata_id
 
 
 def youtube_menu(params, dependencies):
@@ -262,7 +303,7 @@ def browse_catalog(params, dependencies):
 
 def browse_show(params, dependencies):
     """Set up the skin's custom TV-show browse window."""
-    meta_id = params.get('meta_id')
+    meta_id = _route_metadata_id(params, dependencies)
     if not meta_id:
         xbmc.log('[AIOStreams] browse_show: meta_id parameter is missing or empty', xbmc.LOGERROR)
         xbmcgui.Dialog().notification('AIOStreams', 'Invalid show ID', xbmcgui.NOTIFICATION_ERROR)
@@ -301,7 +342,7 @@ def show_seasons(params, dependencies):
     """Render a show's seasons with artwork and Trakt watch state."""
     from resources.lib import trakt
 
-    meta_id = params.get('meta_id')
+    meta_id = _route_metadata_id(params, dependencies)
     if not meta_id:
         xbmc.log('[AIOStreams] show_seasons: meta_id parameter is missing or empty', xbmc.LOGERROR)
         xbmcgui.Dialog().notification('AIOStreams', 'Invalid show ID', xbmcgui.NOTIFICATION_ERROR)

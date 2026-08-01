@@ -82,7 +82,7 @@ class PluginRouteTests(unittest.TestCase):
         self.assertTrue({
             'search', 'browse_catalog', 'show_seasons', 'show_episodes',
             'play', 'play_first', 'select_stream',
-            'trakt_watchlist', 'trakt_next_up', 'refresh_manifest_cache',
+            'trakt_watchlist', 'trakt_next_up', 'refresh_manifest_cache', 'favorites',
         }.issubset(keys))
         self.assertEqual(1, Counter(keys)['info'])
         self.assertNotIn('trakt_collection', keys)
@@ -166,7 +166,7 @@ class PluginRouteTests(unittest.TestCase):
             self.assertTrue(addon.ACTION_REGISTRY)
             self.assertTrue(all(callable(handler) for handler in addon.ACTION_REGISTRY.values()))
             addon.router({})
-            self.assertEqual(6, len(directory_items))
+            self.assertEqual(7, len(directory_items))
         finally:
             sys.argv = original_argv
             sys.modules.pop('addon', None)

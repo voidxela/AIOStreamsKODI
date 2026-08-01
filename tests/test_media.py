@@ -60,7 +60,14 @@ class MediaRefTests(unittest.TestCase):
             'imdb_id': 'tt1375666', 'tmdb_id': '27205', 'name': 'Title',
         }, 'movie')
 
-        self.assertEqual({'meta_id': 'catalog:movie:42', 'title': 'Title'}, media_action_params('show_seasons', media))
+        self.assertEqual(
+            {
+                'content_type': 'movie', 'meta_id': 'catalog:movie:42',
+                'media_id': 'stream:movie:42', 'imdb_id': 'tt1375666',
+                'tmdb_id': '27205', 'title': 'Title',
+            },
+            media_action_params('show_seasons', media),
+        )
         self.assertEqual(
             {
                 'content_type': 'movie', 'meta_id': 'catalog:movie:42',
@@ -68,6 +75,10 @@ class MediaRefTests(unittest.TestCase):
                 'tmdb_id': '27205', 'title': 'Title',
             },
             media_action_params('play', media),
+        )
+        with_origin = MediaRef.from_meta({'id': 'series:42', 'name': 'Title'}, 'series', 'configuration-a')
+        self.assertEqual(
+            'configuration-a', media_action_params('show_seasons', with_origin)['origin_fingerprint'],
         )
 
     def test_playback_route_contract_accepts_legacy_and_normalized_identities(self):
@@ -94,6 +105,14 @@ class MediaRefTests(unittest.TestCase):
             _media_params({
                 'content_type': 'series', 'imdb_id': 'tt0944947', 'season': '1', 'episode': '1',
             }),
+        )
+        self.assertEqual(
+            ('movie', 'tt1375666', 'tt1375666', 'tt1375666', None, None),
+            _media_params({
+                'content_type': 'movie', 'meta_id': 'opaque:movie:1',
+                'media_id': 'stream:movie:1', 'imdb_id': 'tt1375666',
+                'origin_fingerprint': 'configuration-a',
+            }, active_origin='configuration-b'),
         )
 
     def test_content_type_aliases(self):

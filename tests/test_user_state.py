@@ -9,8 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(ROOT, 'plugin.video.aiostreams'))
 
-from resources.lib.media import MediaRef  # noqa: E402
-from resources.lib.user_state import UserState, UserStateError, favorite_key  # noqa: E402
+from resources.lib.user_state import UserState, UserStateError  # noqa: E402
 
 
 class Clock:
@@ -32,17 +31,6 @@ class UserStateTests(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
-    @staticmethod
-    def movie(**overrides):
-        values = {
-            'id': 'catalog:movie:1', 'type': 'movie', 'stream_id': 'stream:movie:1',
-            'imdb_id': 'tt1375666', 'tmdb_id': '27205', 'name': 'Inception',
-            'year': '2010', 'poster': 'poster-a', 'background': 'fanart-a',
-            'origin_fingerprint': 'configuration-a',
-        }
-        values.update(overrides)
-        return MediaRef.from_meta(values, values.get('type'))
-
     def test_schema_migrates_from_an_unversioned_database(self):
         with sqlite3.connect(self.database_path) as connection:
             connection.execute('CREATE TABLE schema_version (version INTEGER NOT NULL)')
@@ -57,8 +45,24 @@ class UserStateTests(unittest.TestCase):
                 )
             }
 
-        self.assertEqual(1, version)
-        self.assertTrue({'search_history', 'preferences', 'favorites'}.issubset(tables))
+        self.assertEqual(3, version)
+        self.assertTrue({'search_history', 'preferences'}.issubset(tables))
+        self.assertNotIn('favorites', tables)
+
+    def test_legacy_favorites_table_is_removed_without_touching_searches_or_preferences(self):
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute('CREATE TABLE schema_version (version INTEGER NOT NULL)')
+            connection.execute('INSERT INTO schema_version(version) VALUES (2)')
+            connection.execute('CREATE TABLE favorites (favorite_key TEXT PRIMARY KEY)')
+            connection.execute('CREATE TABLE search_history (normalized_query TEXT, query TEXT, content_type TEXT, last_used_at INTEGER)')
+            connection.execute('CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+
+        self.state.initialize()
+        with sqlite3.connect(self.database_path) as connection:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        self.assertNotIn('favorites', tables)
+        self.assertEqual('movies', self.state.set_last_search_scope('movies'))
+        self.assertEqual('movies', self.state.get_last_search_scope())
 
     def test_search_history_persists_deduplicates_orders_and_applies_limit(self):
         self.state.record_search('  The   Last of Us ', 'shows')
@@ -87,48 +91,6 @@ class UserStateTests(unittest.TestCase):
         self.assertEqual('all', self.state.get_last_search_scope())
         self.assertEqual('movies', self.state.set_last_search_scope('movie'))
         self.assertEqual('movies', UserState(self.database_path).get_last_search_scope())
-
-    def test_favorite_key_prioritizes_imdb_then_tmdb_then_origin_and_metadata(self):
-        self.assertEqual('movie:imdb:tt1375666', favorite_key(self.movie()))
-        self.assertEqual(
-            'movie:tmdb:27205',
-            favorite_key(self.movie(imdb_id=None, id='meta:2')),
-        )
-        opaque = self.movie(imdb_id=None, tmdb_id=None, id='opaque:2')
-        self.assertEqual('movie:origin:configuration-a:opaque:2', favorite_key(opaque))
-        with self.assertRaisesRegex(ValueError, 'origin fingerprint'):
-            favorite_key(self.movie(imdb_id=None, tmdb_id=None, origin_fingerprint=None))
-
-    def test_favorites_deduplicate_refresh_and_survive_restart(self):
-        original = self.movie()
-        key = self.state.add_favorite(original)
-        refreshed = self.movie(
-            id='catalog:movie:updated', stream_id='stream:updated', name='Inception (Updated)',
-            poster='poster-b', background='fanart-b',
-        )
-        self.assertEqual(key, self.state.add_favorite(refreshed))
-
-        restarted = UserState(self.database_path)
-        favorite = restarted.get_favorite(key)
-        self.assertEqual('Inception (Updated)', favorite['title'])
-        self.assertEqual('catalog:movie:updated', favorite['metadata_id'])
-        self.assertEqual('stream:updated', favorite['playable_id'])
-        self.assertTrue(restarted.is_favorite(refreshed))
-        self.assertEqual([key], [row['favorite_key'] for row in restarted.list_favorites('movies')])
-        self.assertTrue(restarted.remove_favorite(refreshed))
-        self.assertFalse(restarted.is_favorite(key))
-
-    def test_favorites_are_independent_from_search_history_and_preferences(self):
-        key = self.state.add_favorite(self.movie())
-        self.state.record_search('Inception', 'movies')
-        self.state.set_last_search_scope('shows')
-
-        self.state.clear_searches()
-        self.assertIsNotNone(self.state.get_favorite(key))
-        self.assertEqual('shows', self.state.get_last_search_scope())
-        self.state.clear_favorites()
-        self.assertEqual([], self.state.list_favorites())
-        self.assertEqual('shows', self.state.get_last_search_scope())
 
     def test_two_instances_complete_concurrent_writes(self):
         first = UserState(self.database_path)
