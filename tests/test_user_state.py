@@ -31,11 +31,7 @@ class UserStateTests(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
-    def test_schema_migrates_from_an_unversioned_database(self):
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute('CREATE TABLE schema_version (version INTEGER NOT NULL)')
-            connection.execute('INSERT INTO schema_version(version) VALUES (0)')
-
+    def test_schema_contains_only_recent_searches(self):
         self.assertTrue(self.state.record_search('Arrival', 'movies'))
         with sqlite3.connect(self.database_path) as connection:
             version = connection.execute('SELECT version FROM schema_version').fetchone()[0]
@@ -45,23 +41,8 @@ class UserStateTests(unittest.TestCase):
                 )
             }
 
-        self.assertEqual(3, version)
-        self.assertTrue({'search_history'}.issubset(tables))
-        self.assertNotIn('preferences', tables)
-        self.assertNotIn('favorites', tables)
-
-    def test_legacy_favorites_table_is_removed_without_touching_searches_or_preferences(self):
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute('CREATE TABLE schema_version (version INTEGER NOT NULL)')
-            connection.execute('INSERT INTO schema_version(version) VALUES (2)')
-            connection.execute('CREATE TABLE favorites (favorite_key TEXT PRIMARY KEY)')
-            connection.execute('CREATE TABLE search_history (normalized_query TEXT, query TEXT, content_type TEXT, last_used_at INTEGER)')
-            connection.execute('CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
-
-        self.state.initialize()
-        with sqlite3.connect(self.database_path) as connection:
-            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        self.assertNotIn('favorites', tables)
+        self.assertEqual(1, version)
+        self.assertEqual({'schema_version', 'search_history'}, tables)
 
     def test_search_history_persists_deduplicates_orders_and_applies_limit(self):
         self.state.record_search('  The   Last of Us ', 'shows')

@@ -13,7 +13,7 @@ import threading
 import time
 from typing import Iterator, Optional
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 1
 DEFAULT_HISTORY_LIMIT = 20
 DATABASE_FILENAME = 'user_state.db'
 
@@ -138,43 +138,36 @@ class UserState:
                     except sqlite3.DatabaseError:
                         _log(2, 'WAL unavailable; using SQLite default journal mode')
                     connection.execute('BEGIN IMMEDIATE')
-                    self._migrate(connection)
+                    self._initialize_schema(connection)
                     connection.commit()
             except (OSError, sqlite3.Error) as error:
                 self._raise_database_error('initialize', error)
             self._initialized_paths.add(self.database_path)
 
     def initialize(self):
-        """Run pending schema migrations without reading or writing user data."""
+        """Ensure the recent-search schema exists without writing search data."""
         self._ensure_initialized()
 
     @staticmethod
-    def _migrate(connection):
+    def _initialize_schema(connection):
+        """Create the only durable user-state table used by this add-on."""
         connection.execute(
             'CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)'
         )
         row = connection.execute('SELECT version FROM schema_version LIMIT 1').fetchone()
-        version = row['version'] if row else 0
-        if version > SCHEMA_VERSION:
-            raise UserStateError('User-state database uses a newer schema version')
-        if version < 1:
-            connection.execute('''
-                CREATE TABLE IF NOT EXISTS search_history (
-                    normalized_query TEXT NOT NULL,
-                    query TEXT NOT NULL,
-                    content_type TEXT NOT NULL,
-                    last_used_at INTEGER NOT NULL,
-                    PRIMARY KEY(normalized_query, content_type)
-                )
-            ''')
-            if row:
-                connection.execute('UPDATE schema_version SET version = ?', (1,))
-            else:
-                connection.execute('INSERT INTO schema_version(version) VALUES (1)')
-            version = 1
-        if version < 3:
-            connection.execute('DROP TABLE IF EXISTS favorites')
-            connection.execute('UPDATE schema_version SET version = ?', (3,))
+        connection.execute('''
+            CREATE TABLE IF NOT EXISTS search_history (
+                normalized_query TEXT NOT NULL,
+                query TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                last_used_at INTEGER NOT NULL,
+                PRIMARY KEY(normalized_query, content_type)
+            )
+        ''')
+        if row:
+            connection.execute('UPDATE schema_version SET version = ?', (SCHEMA_VERSION,))
+        else:
+            connection.execute('INSERT INTO schema_version(version) VALUES (?)', (SCHEMA_VERSION,))
 
     def _raise_database_error(self, operation, error):
         _log(3, '{} failed: {}'.format(operation, type(error).__name__))
