@@ -106,35 +106,18 @@ Use the following custom formatter parameters in your format string, all in the 
 
 ---
 
-## Optional Skin
-
-While AIOStreams works with any Kodi skin, we offer **AIODI** - a custom skin designed specifically for AIOStreams integration.
-
-### Why Use AIODI Skin?
-
-- **Seamless Integration**: Built-in widget support for AIOStreams catalogs
-- **Widget Manager**: Easy-to-use interface for customizing your home screen
-- **Trakt Widgets**: Dedicated Next Up and Watchlist widgets
-- **YouTube Trailers**: Integrated trailer playback from home screen
-- **IMVDb Support**: MTV-style music video browsing
-- **Modern Design**: Clean, responsive interface optimized for streaming
-
-**Learn more**: See [AIODI Skin Documentation](SKIN_DOCUMENTATION.md)
-
----
-
 ## Installation
 
 ### From Repository (Recommended)
 
-1. Add repository to Kodi: `https://shiggsy365.github.io/AIOStreamsKODI/`
+1. Add repository to Kodi: `https://voidxela.github.io/AIOStreamsKODI/`
 2. Go to: **Settings → Add-ons → Install from repository**
 3. Select **AIOStreams Repository → Video add-ons → AIOStreams**
 4. Click **Install**
 
 ### From Zip File
 
-1. Download latest release from [GitHub Releases](https://github.com/shiggsy365/AIOStreamsKODI/releases)
+1. Download the repository ZIP from [the project page](https://voidxela.github.io/AIOStreamsKODI/)
 2. Go to: **Settings → Add-ons → Install from zip file**
 3. Select the downloaded `.zip` file
 
@@ -167,14 +150,6 @@ While AIOStreams works with any Kodi skin, we offer **AIODI** - a custom skin de
 - Re-authorize Trakt in plugin settings
 - Check Trakt API status at [trakt.tv/status](https://trakt.tv/status)
 - Verify automatic sync is enabled and allow it to complete before retrying
-
----
-
-## Support the Project
-
-If you find this plugin useful, consider supporting development:
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/shiggsy365)
 
 ---
 

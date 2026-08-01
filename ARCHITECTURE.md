@@ -889,7 +889,3 @@ This addon is powered by:
 - **[AIOMetadata](https://github.com/cedya77/aiometadata)** by [Cedya77](https://github.com/cedya77) - Metadata and catalog provider for rich content information
 
 Special thanks to the Kodi community for testing and feedback!
-
-**Support the ecosystem:**
-
-[<img src="https://github.com/shiggsy365/AIOStreamsKODI/blob/main/.github/support_me_on_kofi_red.png?raw=true">](https://ko-fi.com/shiggsy365)

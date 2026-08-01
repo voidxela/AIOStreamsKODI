@@ -97,11 +97,10 @@ def _route_metadata_id(params, dependencies):
 
 
 def youtube_menu(params, dependencies):
-    """Render available third-party music-video entry points."""
+    """Render available YouTube music-video entry points."""
     youtube_available = xbmc.getCondVisibility('System.HasAddon(plugin.video.youtube)')
-    imvdb_available = xbmc.getCondVisibility('System.HasAddon(plugin.video.imvdb)')
-    if not youtube_available and not imvdb_available:
-        xbmcgui.Dialog().notification('AIOStreams', 'Music Video addons not installed', xbmcgui.NOTIFICATION_WARNING)
+    if not youtube_available:
+        xbmcgui.Dialog().notification('AIOStreams', 'YouTube addon not installed', xbmcgui.NOTIFICATION_WARNING)
         xbmcplugin.endOfDirectory(dependencies.handle, succeeded=False)
         return None
     if youtube_available:
