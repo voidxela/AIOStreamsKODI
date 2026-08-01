@@ -149,20 +149,26 @@ class MediaRefTests(unittest.TestCase):
 
     def test_show_routes_keep_original_ids_or_use_only_a_safe_cross_configuration_id(self):
         install()
-        from resources.lib.actions.browse import _route_metadata_id
+        try:
+            from resources.lib.actions.browse import _route_metadata_id
 
-        route = {
-            'content_type': 'series', 'meta_id': 'opaque:series:1', 'tmdb_id': '1399',
-            'origin_fingerprint': 'configuration-a',
-        }
-        self.assertEqual(
-            'opaque:series:1', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-a')),
-        )
-        self.assertEqual(
-            'tmdb:1399', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')),
-        )
-        route['tmdb_id'] = 'invalid'
-        self.assertIsNone(_route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')))
+            route = {
+                'content_type': 'series', 'meta_id': 'opaque:series:1', 'tmdb_id': '1399',
+                'origin_fingerprint': 'configuration-a',
+            }
+            self.assertEqual(
+                'opaque:series:1', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-a')),
+            )
+            self.assertEqual(
+                'tmdb:1399', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')),
+            )
+            route['tmdb_id'] = 'invalid'
+            self.assertIsNone(_route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')))
+        finally:
+            sys.modules.pop('resources.lib.actions.browse', None)
+            actions = sys.modules.get('resources.lib.actions')
+            if actions and hasattr(actions, 'browse'):
+                delattr(actions, 'browse')
 
     def test_unsupported_cross_configuration_favorite_is_reported_without_a_request(self):
         install()
