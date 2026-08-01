@@ -124,29 +124,29 @@ class NativeFavoriteTests(unittest.TestCase):
         self.assertTrue(is_folder)
 
     def test_display_poller_refreshes_only_after_native_favorites_change(self):
-        now = [0]
         path = ['plugin://plugin.video.aiostreams/?action=favorites']
         entries = [self.parse_favorite({
             'type': 'media', 'title': 'Arrival',
             'path': 'plugin://plugin.video.aiostreams/?action=play&content_type=movie&meta_id=movie%3A1',
         })]
         refreshed = []
+        polls = []
         poller = self.FavoritesDisplayPoller(
-            current_path=lambda: path[0], get_favorites=lambda: entries,
-            refresh=lambda: refreshed.append(True), clock=lambda: now[0],
+            current_path=lambda: path[0],
+            get_favorites=lambda: polls.append(True) or entries,
+            refresh=lambda: refreshed.append(True),
         )
 
         self.assertFalse(poller.poll())
-        now[0] = 9
         self.assertFalse(poller.poll())
         entries.clear()
-        now[0] = 10
         self.assertTrue(poller.poll())
         self.assertEqual([True], refreshed)
-        now[0] = 20
         self.assertFalse(poller.poll())
+        self.assertEqual(4, len(polls))
         path[0] = 'plugin://plugin.video.aiostreams/?action=index'
         self.assertFalse(poller.poll())
+        self.assertEqual(4, len(polls))
 
 
 if __name__ == '__main__':

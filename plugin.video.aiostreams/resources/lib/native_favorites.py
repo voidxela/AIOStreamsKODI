@@ -7,7 +7,6 @@ routes, so a bookmarked catalog or maintenance action never appears as media.
 from dataclasses import dataclass
 import json
 import re
-import time
 from urllib.parse import parse_qsl, urlparse
 
 
@@ -122,27 +121,17 @@ def favorites_signature(favorites):
 class FavoritesDisplayPoller:
     """Refresh the open Favorites directory only after a native change."""
 
-    def __init__(
-        self, current_path, get_favorites, refresh, interval_seconds=10, clock=None,
-    ):
+    def __init__(self, current_path, get_favorites, refresh):
         self._current_path = current_path
         self._get_favorites = get_favorites
         self._refresh = refresh
-        self._interval_seconds = interval_seconds
-        self._clock = clock or time.monotonic
-        self._next_poll_at = 0
         self._signature = None
 
     def poll(self):
         """Poll once; return true only when the visible list was refreshed."""
         if not is_favorites_directory(self._current_path()):
             self._signature = None
-            self._next_poll_at = 0
             return False
-        now = self._clock()
-        if now < self._next_poll_at:
-            return False
-        self._next_poll_at = now + self._interval_seconds
         try:
             signature = favorites_signature(self._get_favorites())
         except Exception:

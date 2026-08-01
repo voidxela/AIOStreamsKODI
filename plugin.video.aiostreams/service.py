@@ -482,9 +482,9 @@ class AIOStreamsService:
         xbmc.executebuiltin('Container.Refresh')
         xbmc.log('[AIOStreams Service] Forced container refresh for widgets', xbmc.LOGINFO)
 
-        # The five-second loop only checks a Kodi window label. The native
-        # Favorites JSON-RPC query remains limited to every 10 seconds while
-        # this add-on's Favorites directory is actually open.
+        # Poll native Favorites on each five-second service tick, but only
+        # while this add-on's Favorites directory is open. The poller refreshes
+        # Kodi only when its visible native entries have changed.
         loop_count = 0
         while not self.monitor.abortRequested():
             # Check if search is active (Global or Internal) - if so, skip background noise

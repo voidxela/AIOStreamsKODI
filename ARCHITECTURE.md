@@ -142,7 +142,7 @@ Kodi's native Favorites store is the sole source of truth for favorites.
 `native_favorites.py` reads only durable AIOStreams movie/show routes through
 `Favourites.GetFavourites`; it never writes a local favorite, snapshot, or
 reconciliation cache. Kodi does not notify this add-on when that store changes,
-so the service polls at most every ten seconds only while this Favorites folder
+so the service polls on each five-second tick only while this Favorites folder
 is open and calls `Container.Refresh` only after a visible change. This is an
 intentional UI behavior, not eventual reconciliation.
 

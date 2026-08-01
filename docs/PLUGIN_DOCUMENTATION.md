@@ -26,8 +26,8 @@ original scope, or use its context menu to remove one entry or clear the list.
 The plugin's **Favorites** folder is a filtered view of Kodi's native Favorites
 store. Use Kodi's standard Add to favorites and Remove from favorites controls;
 there is no separate AIOStreams favorites database. Kodi does not notify add-ons
-about favorite changes, so an open AIOStreams Favorites folder checks at most
-once every ten seconds and refreshes only after Kodi's native list changes.
+about favorite changes, so an open AIOStreams Favorites folder checks on each
+five-second service tick and refreshes only after Kodi's native list changes.
 
 ---
 
