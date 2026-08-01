@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.403] - 2026-08-01
+
+### Added
+- Recent searches retain each submitted query with its All, Movies, or Series scope.
+- AIOStreams Favorites now presents Kodi's native movie and series favorites.
+
+### Fixed
+- Combined searches retain successful results when the other scope fails and cancel without stale directory updates.
+- Cross-configuration favorites preserve validated IMDb IDs and namespaced TMDb IDs.
+
+### Changed
+- Favorites have no local store or snapshot cache; Kodi is the sole source of truth.
+- Removed the unused global last-search-scope preference and its schema scaffolding.
+
 ## [1.1.46] - 2026-01-12
 
 ### Added

@@ -16,6 +16,19 @@ AIOStreams acts as a frontend client for your [AIOStreams backend](https://githu
 - **🌐 Subtitle Support**: Automatic subtitle scraping via AIOStreams backend
 - **🎥 Trailer Playback**: YouTube trailer integration for content preview
 
+### Recent searches and favorites
+
+The home folder exposes separate **Search All**, **Search Movies**, and
+**Search Series** entries. Submitted non-empty searches are retained as up to
+20 recent query-and-scope pairs. Select a Recent Searches entry to rerun its
+original scope, or use its context menu to remove one entry or clear the list.
+
+The plugin's **Favorites** folder is a filtered view of Kodi's native Favorites
+store. Use Kodi's standard Add to favorites and Remove from favorites controls;
+there is no separate AIOStreams favorites database. Kodi does not notify add-ons
+about favorite changes, so an open AIOStreams Favorites folder checks at most
+once every ten seconds and refreshes only after Kodi's native list changes.
+
 ---
 
 ## Required Configuration
@@ -25,7 +38,8 @@ AIOStreams acts as a frontend client for your [AIOStreams backend](https://githu
 You **must** have a running AIOStreams instance configured with:
 
 #### Required Components:
-- **Metadata Provider**: Must use a provider that serves **IMDB tags**
+- **Metadata Provider**: Should provide stable IMDb IDs; TMDb IDs are also
+  supported when reopening a favorite under a different configuration
   - **Recommended**: [AIOMetadata](https://github.com/cedya77/aiometadata) for stability and reliability
   - AIOMetadata provides rich metadata, catalog support, and IMDB ID integration
   
@@ -144,9 +158,9 @@ While AIOStreams works with any Kodi skin, we offer **AIODI** - a custom skin de
 - Check that scrapers are configured in your backend
 - Ensure metadata provider (AIOMetadata) is properly configured
 
-### IMDB ID Errors
-- Confirm your metadata provider serves IMDB tags
-- AIOMetadata is recommended for reliable IMDB ID support
+### External ID Errors
+- Confirm your metadata provider serves stable IMDb or TMDb IDs
+- AIOMetadata is recommended for reliable external ID support
 - Check backend logs for metadata provider errors
 
 ### Trakt Sync Issues

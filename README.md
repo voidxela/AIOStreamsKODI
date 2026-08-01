@@ -38,6 +38,8 @@ Key Guides:
 
 - **🎬 Standalone Plugin**: Use AIOStreams with any Kodi skin.
 - **📺 AIODI Skin**: A custom-designed Kodi skin optimized for AIOStreams and AIOMetadata integration.
+- **🔎 Recent Searches**: The plugin keeps the 20 most recent query-and-scope pairs. Choose a saved entry to repeat the same All, Movies, or Series search; remove individual entries or clear the list from its context menu.
+- **⭐ Kodi Favorites**: The Favorites folder shows AIOStreams movie and series entries from Kodi's native Favorites store. Add or remove these with Kodi's normal Favorites controls; the add-on does not keep a second favorites database.
 
 ---
 
