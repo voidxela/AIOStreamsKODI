@@ -31,9 +31,14 @@ class Dialog:
     def yesno(self, *_args, **_kwargs):
         return self.confirmed
 
+    def notification(self, *_args, **_kwargs):
+        return None
+
 
 class Progress:
     cancelled = False
+    cancel_on_check = None
+    cancel_checks = 0
     instances = []
 
     def __init__(self):
@@ -47,6 +52,9 @@ class Progress:
         return None
 
     def iscanceled(self):
+        Progress.cancel_checks += 1
+        if Progress.cancel_on_check == Progress.cancel_checks:
+            return True
         return self.cancelled
 
     def close(self):
@@ -110,6 +118,8 @@ class SearchActionTests(unittest.TestCase):
         Dialog.response = ''
         Dialog.confirmed = True
         Progress.cancelled = False
+        Progress.cancel_on_check = None
+        Progress.cancel_checks = 0
         Progress.instances = []
         self.search._search_result_cache.clear()
 
@@ -181,6 +191,39 @@ class SearchActionTests(unittest.TestCase):
         self.assertEqual(2, len(calls))
         self.assertEqual([('Dune', 'all')], state.recorded)
 
+    def test_combined_search_keeps_the_successful_scope_after_a_partial_failure(self):
+        calls = []
+
+        def search_catalog(_query, content_type, skip=0):
+            calls.append((content_type, skip))
+            if content_type == 'movie':
+                raise RuntimeError('movie backend unavailable')
+            return {'metas': [{'id': 'show:1', 'name': 'Fallout', 'type': 'series'}]}
+
+        self.search._search(
+            {'content_type': 'both', 'query': 'Fallout'},
+            self.dependencies(State(), search_catalog),
+        )
+
+        self.assertEqual([('movie', 0), ('series', 0)], sorted(calls))
+        self.assertEqual(['Fallout'], [item[2].label for item in self.directory_items])
+        self.assertTrue(self.end_calls[-1][1].get('succeeded', True))
+
+    def test_combined_search_reports_a_total_failure(self):
+        notifications = []
+        original_notification = Dialog.notification
+        Dialog.notification = lambda _self, *args: notifications.append(args)
+        self.addCleanup(setattr, Dialog, 'notification', original_notification)
+
+        self.search._search(
+            {'content_type': 'both', 'query': 'Fallout'},
+            self.dependencies(State(), lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError('offline'))),
+        )
+
+        self.assertEqual([], self.directory_items)
+        self.assertEqual(False, self.end_calls[-1][1]['succeeded'])
+        self.assertEqual('Movie and TV show searches failed', notifications[-1][1])
+
     def test_recent_searches_render_rerun_remove_and_clear_actions(self):
         state = State(searches=[{'query': 'Arrival', 'content_type': 'movies'}])
         dependencies = self.dependencies(state, lambda *_args, **_kwargs: {'metas': []})
@@ -205,6 +248,18 @@ class SearchActionTests(unittest.TestCase):
         self.search._search({'content_type': 'both', 'query': 'Dune'}, dependencies)
 
         self.assertTrue(Progress.instances[-1].closed)
+        self.assertEqual(False, self.end_calls[-1][1]['succeeded'])
+
+    def test_late_cancellation_does_not_render_completed_combined_results(self):
+        Progress.cancel_on_check = 2
+        dependencies = self.dependencies(
+            State(), lambda *_args, **_kwargs: {'metas': [{'id': 'movie:1', 'name': 'Dune'}]},
+        )
+
+        self.search._search({'content_type': 'both', 'query': 'Dune'}, dependencies)
+
+        self.assertTrue(Progress.instances[-1].closed)
+        self.assertEqual([], self.directory_items)
         self.assertEqual(False, self.end_calls[-1][1]['succeeded'])
 
 

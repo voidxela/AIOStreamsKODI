@@ -1,5 +1,5 @@
 """Search actions, recent-query UI, and bounded combined searching."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 import threading
 import time
@@ -246,43 +246,91 @@ def _add_result(meta, content_type, dependencies):
     xbmcplugin.addDirectoryItem(dependencies.handle, url, list_item, is_folder)
 
 
+def _unique_results(metas, content_type):
+    """Preserve backend order while dropping duplicate media in one scope."""
+    unique = []
+    seen = set()
+    for meta in metas:
+        if not isinstance(meta, dict):
+            continue
+        identifier = (
+            meta.get('metadata_id') or meta.get('meta_id') or meta.get('id') or
+            meta.get('imdb_id') or meta.get('imdbId') or
+            meta.get('tmdb_id') or meta.get('tmdbId')
+        )
+        if not identifier:
+            identifier = (meta.get('name') or meta.get('title') or '', meta.get('year') or '')
+        key = (content_type, str(identifier))
+        if key not in seen:
+            seen.add(key)
+            unique.append(meta)
+    return unique
+
+
 def search_all_results(query, dependencies):
     """Render combined movie and show results in a single directory."""
     xbmcplugin.setPluginCategory(dependencies.handle, f'Search: {query}')
     xbmcplugin.setContent(dependencies.handle, 'videos')
     progress = xbmcgui.DialogProgress()
     progress.create('AIOStreams', 'Searching movies and TV shows...')
-    movie_results = series_results = None
+    results = {}
+    failures = {}
     cancelled = False
     executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='AIOStreamsSearch')
     try:
         progress.update(25, 'Searching movies and TV shows...')
-        movie_future = executor.submit(_get_search_results, query, 'movie', 0, dependencies)
-        series_future = executor.submit(_get_search_results, query, 'series', 0, dependencies)
-        if _search_cancelled(progress):
-            cancelled = True
-            movie_future.cancel()
-            series_future.cancel()
-        else:
-            # Resolve in display order, independent of whichever request wins.
-            movie_results = movie_future.result()
-            progress.update(60, 'Searching TV shows...')
+        futures = {
+            executor.submit(_get_search_results, query, 'movie', 0, dependencies): 'movie',
+            executor.submit(_get_search_results, query, 'series', 0, dependencies): 'series',
+        }
+        pending = set(futures)
+        while pending:
             if _search_cancelled(progress):
                 cancelled = True
-                series_future.cancel()
-            else:
-                series_results = series_future.result()
-    except Exception as error:
-        xbmc.log('[AIOStreams] Combined search failed: {}'.format(type(error).__name__), xbmc.LOGWARNING)
+                for future in pending:
+                    future.cancel()
+                break
+            done, pending = wait(pending, timeout=0.1)
+            if _search_cancelled(progress):
+                cancelled = True
+                for future in pending:
+                    future.cancel()
+                break
+            for future in done:
+                content_type = futures[future]
+                try:
+                    results[content_type] = future.result()
+                except Exception as error:
+                    failures[content_type] = error
+                    xbmc.log(
+                        '[AIOStreams] {} search failed during combined search: {}'.format(
+                            content_type, type(error).__name__,
+                        ),
+                        xbmc.LOGWARNING,
+                    )
+            if 'movie' in results or 'movie' in failures:
+                progress.update(60, 'Searching TV shows...')
     finally:
-        executor.shutdown(wait=True)
         progress.close()
+        # Workers never touch Kodi UI.  Close the dialog before joining them so
+        # cancellation cannot leave a modal progress window on screen, then
+        # join every worker to avoid orphaned executor threads.
+        executor.shutdown(wait=True)
 
     if cancelled:
         xbmcplugin.endOfDirectory(dependencies.handle, succeeded=False)
         return None
 
-    movies = _filter_items((movie_results or {}).get('metas', []), dependencies)
+    if len(failures) == 2:
+        xbmcgui.Dialog().notification(
+            'AIOStreams', 'Movie and TV show searches failed', xbmcgui.NOTIFICATION_ERROR,
+        )
+        xbmcplugin.endOfDirectory(dependencies.handle, succeeded=False)
+        return None
+
+    movies = _filter_items(
+        _unique_results((results.get('movie') or {}).get('metas', []), 'movie'), dependencies,
+    )
     for meta in movies[:10]:
         _add_result(meta, 'movie', dependencies)
     if len(movies) > 10:
@@ -294,7 +342,9 @@ def search_all_results(query, dependencies):
         )
         xbmcplugin.addDirectoryItem(dependencies.handle, url, list_item, True)
 
-    shows = _filter_items((series_results or {}).get('metas', []), dependencies)
+    shows = _filter_items(
+        _unique_results((results.get('series') or {}).get('metas', []), 'series'), dependencies,
+    )
     for meta in shows[:10]:
         _add_result(meta, 'series', dependencies)
     if len(shows) > 10:
