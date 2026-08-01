@@ -6,6 +6,8 @@ import re
 
 MOVIE_TYPES = frozenset(('movie', 'movies'))
 SERIES_TYPES = frozenset(('series', 'show', 'shows', 'tvshow', 'tvshows'))
+IMDB_ID_PATTERN = re.compile(r'tt\d+', re.IGNORECASE)
+TMDB_ID_PATTERN = re.compile(r'(?:tmdb:)?(\d+)', re.IGNORECASE)
 
 
 def _text(value):
@@ -34,6 +36,23 @@ def normalize_content_type(content_type, fallback='movie'):
     return value
 
 
+def fallback_metadata_id(content_type, imdb_id=None, tmdb_id=None):
+    """Return a portable metadata ID for a configured movie or show backend.
+
+    AIOStreams routes use bare IMDb IDs but require the ``tmdb:`` namespace for
+    TMDb IDs.  The requested content type remains the separate Stremio path
+    segment, so never infer it from an identifier or route an unsupported ID.
+    """
+    if normalize_content_type(content_type) not in ('movie', 'series'):
+        return None
+    imdb_id = _text(imdb_id)
+    if imdb_id and IMDB_ID_PATTERN.fullmatch(imdb_id):
+        return imdb_id.lower()
+    tmdb_id = _text(tmdb_id)
+    match = TMDB_ID_PATTERN.fullmatch(tmdb_id or '')
+    return 'tmdb:{}'.format(match.group(1)) if match else None
+
+
 def _ids(meta):
     values = meta.get('ids') or {}
     return values if isinstance(values, dict) else {}
@@ -44,7 +63,7 @@ def _imdb_id(meta, metadata_id):
     candidate = _first(meta.get('imdb_id'), meta.get('imdbId'), ids.get('imdb'))
     if candidate:
         return candidate
-    return metadata_id if metadata_id and re.fullmatch(r'tt\d+', metadata_id, re.IGNORECASE) else None
+    return metadata_id if metadata_id and IMDB_ID_PATTERN.fullmatch(metadata_id) else None
 
 
 def _tmdb_id(meta, metadata_id):

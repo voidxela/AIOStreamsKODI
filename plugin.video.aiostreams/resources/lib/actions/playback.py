@@ -7,7 +7,7 @@ import xbmc
 import xbmcgui
 import xbmcplugin
 
-from ..media import MediaRef
+from ..media import MediaRef, fallback_metadata_id
 from ..stream_utils import matching_episode_id
 
 
@@ -53,11 +53,26 @@ def _media_params(params, active_origin=None):
             media_id = imdb_id or meta_id
     saved_origin = params.get('origin_fingerprint')
     if saved_origin and active_origin and saved_origin != active_origin:
-        durable_id = imdb_id or params.get('tmdb_id')
-        if durable_id:
-            meta_id = durable_id
-            media_id = durable_id
+        durable_id = fallback_metadata_id(content_type, imdb_id, params.get('tmdb_id'))
+        meta_id = durable_id or ''
+        if durable_id and content_type != 'movie' and season is not None and episode is not None:
+            media_id = '{}:{}:{}'.format(durable_id, season, episode)
+        else:
+            media_id = durable_id or ''
     return content_type, meta_id, imdb_id, media_id, season, episode
+
+
+def _unavailable_cross_configuration(params, active_origin, media_id):
+    """Explain why an opaque favorite cannot safely open on this backend."""
+    saved_origin = params.get('origin_fingerprint')
+    if not (saved_origin and active_origin and saved_origin != active_origin and not media_id):
+        return False
+    xbmc.log('[AIOStreams] Favorite has no portable IMDb or TMDb identifier', xbmc.LOGWARNING)
+    xbmcgui.Dialog().notification(
+        'AIOStreams', 'This favorite is unavailable for the current configuration',
+        xbmcgui.NOTIFICATION_ERROR,
+    )
+    return True
 
 
 def _add_subtitles(list_item, content_type, media_id, dependencies):
@@ -181,6 +196,8 @@ def play(params, dependencies):
     content_type, meta_id, imdb_id, media_id, season, episode = _media_params(
         params, dependencies.origin_fingerprint,
     )
+    if _unavailable_cross_configuration(params, dependencies.origin_fingerprint, media_id):
+        return None
     title = params.get('title', 'Unknown' if content_type == 'movie' else f'S{season}E{episode}')
     poster, fanart, clearlogo = (params.get('poster', ''), params.get('fanart', ''), params.get('clearlogo', ''))
     requested_media_id = media_id
@@ -243,6 +260,8 @@ def play_first(params, dependencies):
     content_type, _meta_id, imdb_id, media_id, season, episode = _media_params(
         params, dependencies.origin_fingerprint,
     )
+    if _unavailable_cross_configuration(params, dependencies.origin_fingerprint, media_id):
+        return None
     progress = xbmcgui.DialogProgress()
     progress.create('AIOStreams', 'Scraping streams...')
     try:
@@ -271,6 +290,8 @@ def select_stream(params, dependencies):
     content_type, meta_id, imdb_id, media_id, season, episode = _media_params(
         params, dependencies.origin_fingerprint,
     )
+    if _unavailable_cross_configuration(params, dependencies.origin_fingerprint, media_id):
+        return None
     title, poster, fanart, clearlogo = (params.get('title', ''), params.get('poster', ''), params.get('fanart', ''), params.get('clearlogo', ''))
     progress = xbmcgui.DialogProgress()
     progress.create('AIOStreams', 'Fetching metadata...')

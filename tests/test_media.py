@@ -1,13 +1,14 @@
 import os
 import sys
 import unittest
+from types import SimpleNamespace
 
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(ROOT, 'plugin.video.aiostreams'))
 
 from resources.lib.items import media_action_params, plugin_url  # noqa: E402
-from resources.lib.media import MediaRef, normalize_content_type  # noqa: E402
+from resources.lib.media import MediaRef, fallback_metadata_id, normalize_content_type  # noqa: E402
 from kodi_stubs import install  # noqa: E402
 
 
@@ -114,6 +115,68 @@ class MediaRefTests(unittest.TestCase):
                 'origin_fingerprint': 'configuration-a',
             }, active_origin='configuration-b'),
         )
+        self.assertEqual(
+            ('movie', 'tmdb:27205', '', 'tmdb:27205', None, None),
+            _media_params({
+                'content_type': 'movie', 'meta_id': 'opaque:movie:1',
+                'media_id': 'stream:movie:1', 'tmdb_id': '27205',
+                'origin_fingerprint': 'configuration-a',
+            }, active_origin='configuration-b'),
+        )
+        self.assertEqual(
+            ('series', 'tmdb:1399', '', 'tmdb:1399:1:2', '1', '2'),
+            _media_params({
+                'content_type': 'series', 'meta_id': 'opaque:series:1',
+                'media_id': 'stream:series:1:1:2', 'tmdb_id': 'tmdb:1399',
+                'season': '1', 'episode': '2', 'origin_fingerprint': 'configuration-a',
+            }, active_origin='configuration-b'),
+        )
+        self.assertEqual(
+            ('movie', '', 'not-an-imdb-id', '', None, None),
+            _media_params({
+                'content_type': 'movie', 'meta_id': 'opaque:movie:1',
+                'media_id': 'stream:movie:1', 'imdb_id': 'not-an-imdb-id',
+                'tmdb_id': 'not-a-tmdb-id', 'origin_fingerprint': 'configuration-a',
+            }, active_origin='configuration-b'),
+        )
+
+    def test_cross_configuration_fallback_ids_are_explicit_and_media_typed(self):
+        self.assertEqual('tt1375666', fallback_metadata_id('movie', 'tt1375666', '27205'))
+        self.assertEqual('tmdb:27205', fallback_metadata_id('movies', None, '27205'))
+        self.assertEqual('tmdb:1399', fallback_metadata_id('series', None, 'tmdb:1399'))
+        self.assertIsNone(fallback_metadata_id('episode', None, '1399'))
+        self.assertIsNone(fallback_metadata_id('movie', 'not-imdb', 'not-tmdb'))
+
+    def test_show_routes_keep_original_ids_or_use_only_a_safe_cross_configuration_id(self):
+        install()
+        from resources.lib.actions.browse import _route_metadata_id
+
+        route = {
+            'content_type': 'series', 'meta_id': 'opaque:series:1', 'tmdb_id': '1399',
+            'origin_fingerprint': 'configuration-a',
+        }
+        self.assertEqual(
+            'opaque:series:1', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-a')),
+        )
+        self.assertEqual(
+            'tmdb:1399', _route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')),
+        )
+        route['tmdb_id'] = 'invalid'
+        self.assertIsNone(_route_metadata_id(route, SimpleNamespace(origin_fingerprint='configuration-b')))
+
+    def test_unsupported_cross_configuration_favorite_is_reported_without_a_request(self):
+        install()
+        from resources.lib.actions import playback
+
+        notifications = []
+        playback.xbmcgui.Dialog = lambda: SimpleNamespace(
+            notification=lambda *args: notifications.append(args),
+        )
+        route = {'origin_fingerprint': 'configuration-a', 'imdb_id': 'not-an-imdb-id'}
+
+        self.assertTrue(playback._unavailable_cross_configuration(route, 'configuration-b', ''))
+        self.assertFalse(playback._unavailable_cross_configuration(route, 'configuration-a', ''))
+        self.assertEqual('This favorite is unavailable for the current configuration', notifications[-1][1])
 
     def test_content_type_aliases(self):
         self.assertEqual('movie', normalize_content_type('movies'))

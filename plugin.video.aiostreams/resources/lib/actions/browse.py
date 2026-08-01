@@ -8,7 +8,7 @@ import xbmcgui
 import xbmcplugin
 
 from ..items import media_action_params
-from ..media import MediaRef
+from ..media import MediaRef, fallback_metadata_id
 from ..native_favorites import list_aiostreams_favorites
 
 
@@ -90,7 +90,9 @@ def _route_metadata_id(params, dependencies):
     metadata_id = params.get('meta_id')
     saved_origin = params.get('origin_fingerprint')
     if saved_origin and dependencies.origin_fingerprint and saved_origin != dependencies.origin_fingerprint:
-        return params.get('imdb_id') or params.get('tmdb_id') or metadata_id
+        return fallback_metadata_id(
+            params.get('content_type', 'series'), params.get('imdb_id'), params.get('tmdb_id'),
+        )
     return metadata_id
 
 
