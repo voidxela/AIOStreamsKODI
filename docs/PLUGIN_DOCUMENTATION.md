@@ -1,5 +1,14 @@
 # AIOStreams Kodi Plugin Documentation
 
+## Contents
+
+- [Overview](#overview)
+- [Required Configuration](#required-configuration)
+- [Custom Formatter Option](#custom-formatter-option)
+- [Installation](#installation)
+- [Quick Start Guide](#quick-start-guide)
+- [Troubleshooting](#troubleshooting)
+
 ## Overview
 
 **AIOStreams for KODI** is a powerful Kodi video plugin that connects to your self-hosted AIOStreams backend, providing seamless access to streaming content with advanced features like Trakt synchronization, intelligent stream selection, and comprehensive metadata integration.
@@ -15,19 +24,8 @@ AIOStreams acts as a frontend client for your [AIOStreams backend](https://githu
 - **🎨 Rich Metadata**: TMDb/TVDb integration with posters, fanart, cast information, and ratings
 - **🌐 Subtitle Support**: Automatic subtitle scraping via AIOStreams backend
 - **🎥 Trailer Playback**: YouTube trailer integration for content preview
-
-### Recent searches and favorites
-
-The home folder exposes separate **Search All**, **Search Movies**, and
-**Search Series** entries. Submitted non-empty searches are retained as up to
-20 recent query-and-scope pairs. Select a Recent Searches entry to rerun its
-original scope, or use its context menu to remove one entry or clear the list.
-
-The plugin's **Favorites** folder is a filtered view of Kodi's native Favorites
-store. Use Kodi's standard Add to favorites and Remove from favorites controls;
-there is no separate AIOStreams favorites database. Kodi does not notify add-ons
-about favorite changes, so an open AIOStreams Favorites folder checks on each
-five-second service tick and refreshes only after Kodi's native list changes.
+- **🔎 Recent Searches**: Search All, Movies, and Series separately; up to 20 recent query-and-scope pairs can be rerun, removed individually, or cleared.
+- **⭐ Native Favorites**: Browse your Kodi Favorites that belong to AIOStreams and manage them with Kodi’s standard favorite controls.
 
 ---
 
@@ -38,14 +36,9 @@ five-second service tick and refreshes only after Kodi's native list changes.
 You **must** have a running AIOStreams instance configured with:
 
 #### Required Components:
-- **Metadata Provider**: Should provide stable IMDb IDs; TMDb IDs are also
-  supported when reopening a favorite under a different configuration
-  - **Recommended**: [AIOMetadata](https://github.com/cedya77/aiometadata) for stability and reliability
-  - AIOMetadata provides rich metadata, catalog support, and IMDB ID integration
-  
-- **Search Provider**: Configure at least one search provider
-  - AIOMetadata (recommended) provides unified search across content types
-  
+- **Metadata Provider**: Should provide stable IMDb IDs; TMDb IDs are also supported when reopening a favorite under a different configuration.
+- **Recommended metadata provider**: [AIOMetadata](https://github.com/cedya77/aiometadata) provides rich metadata, catalog support, and IMDb ID integration.
+- **Search Provider**: Configure at least one search provider; AIOMetadata provides unified search across content types.
 - **Scraper**: At least one torrent indexer or debrid service configured
 
 #### Backend Setup:
@@ -90,6 +83,7 @@ AIOStreams supports **custom stream title formatting** to display stream informa
 
 Use the following custom formatter parameters in your format string, all in the 'Name' section, leave Description empty:
 
+```
 {stream.resolution::exists["RESOLUTION: {stream.resolution}"||""]}
 {service.name::exists["SERVICE: {service.name}"||""]}
 {addon.name::exists["ADDON: {addon.name}"||""]}
@@ -102,24 +96,17 @@ Use the following custom formatter parameters in your format string, all in the 
 {stream.audioTags::exists["AUDIO: {stream.audioTags::join(' | ')} | {stream.audioChannels}"||""]}{stream.languages::exists[" | {stream.languages::join(' / ')}"||""]}
 {stream.indexer::exists["INDEXER: {stream.indexer} "||""]}{stream.seeders::exists["| {stream.seeders} Seeders"||""]}{stream.age::exists[" | {stream.age} Old"||""]}
 {stream.filename::exists["FILENAME: {stream.filename}"||""]}
+```
 
 
 ---
 
 ## Installation
 
-### From Repository (Recommended)
-
-1. Add repository to Kodi: `https://voidxela.github.io/AIOStreamsKODI/`
-2. Go to: **Settings → Add-ons → Install from repository**
-3. Select **AIOStreams Repository → Video add-ons → AIOStreams**
-4. Click **Install**
-
-### From Zip File
-
-1. Download the repository ZIP from [the project page](https://voidxela.github.io/AIOStreamsKODI/)
-2. Go to: **Settings → Add-ons → Install from zip file**
-3. Select the downloaded `.zip` file
+1. In Kodi, open **Settings → File manager → Add source**, enter `https://voidxela.github.io/AIOStreamsKODI/`, and give it a memorable name such as **AIOStreams**.
+2. Open **Settings → Add-ons → Install from zip file**, select the **AIOStreams** source, then select [{{REPOSITORY_ZIP}}]({{REPOSITORY_ZIP}}). The same link can be downloaded in a browser when needed.
+3. Confirm the repository installation.
+4. Open **Settings → Add-ons → Install from repository → AIOStreams Repository → Video add-ons → AIOStreams**, then select **Install**.
 
 ---
 
@@ -154,7 +141,3 @@ Use the following custom formatter parameters in your format string, all in the 
 ---
 
 **License**: MIT
-
-**Powered by**:
-- [AIOStreams](https://github.com/Viren070/aiostreams) by Viren070
-- [AIOMetadata](https://github.com/cedya77/aiometadata) by Cedya77

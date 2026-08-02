@@ -1,2 +1,89 @@
-<!DOCTYPE html>
-<a href="repository.aiostreams-1.1.30.zip">repository.aiostreams-1.1.30.zip</a>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AIOStreams Kodi add-on documentation and installation instructions.">
+  <title>AIOStreams Kodi</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #ffffff; --surface: #f6f8fa; --text: #1f2328; --muted: #59636e; --border: #d0d7de; --link: #0969da; --code: #f1f3f5; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --surface: #161b22; --text: #e6edf3; --muted: #9da7b3; --border: #30363d; --link: #58a6ff; --code: #161b22; } }
+    * { box-sizing: border-box; }
+    body { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--text); font: 1rem/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    h1, h2, h3, h4 { line-height: 1.25; margin: 2.25rem 0 0.75rem; }
+    h1 { margin-top: 0; font-size: clamp(2rem, 6vw, 3rem); }
+    h2 { border-bottom: 1px solid var(--border); padding-bottom: .35rem; }
+    p, ul, ol { margin: .75rem 0; }
+    li + li { margin-top: .35rem; }
+    a { color: var(--link); }
+    code { padding: .12rem .32rem; border-radius: .25rem; background: var(--code); font: .9em ui-monospace, SFMono-Regular, Consolas, monospace; }
+    pre { overflow-x: auto; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); }
+    pre code { padding: 0; background: transparent; }
+    hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+  </style>
+</head>
+<body>
+<main>
+<h1 id="aiostreams-kodi-plugin-documentation">AIOStreams Kodi Plugin Documentation</h1>
+<h2 id="contents">Contents</h2>
+<ul><li><a href="#overview">Overview</a></li><li><a href="#required-configuration">Required Configuration</a></li><li><a href="#custom-formatter-option">Custom Formatter Option</a></li><li><a href="#installation">Installation</a></li><li><a href="#quick-start-guide">Quick Start Guide</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul>
+<h2 id="overview">Overview</h2>
+<p><strong>AIOStreams for KODI</strong> is a powerful Kodi video plugin that connects to your self-hosted AIOStreams backend, providing seamless access to streaming content with advanced features like Trakt synchronization, intelligent stream selection, and comprehensive metadata integration.</p>
+<h3 id="what-does-aiostreams-for-kodi-do">What Does AIOStreams for KODI Do?</h3>
+<p>AIOStreams acts as a frontend client for your <a href="https://github.com/Viren070/aiostreams">AIOStreams backend</a>, bringing powerful streaming aggregation directly into your Kodi media center:</p>
+<ul><li><strong>🎬 Content Discovery</strong>: Browse catalogs, search movies/TV shows, and discover trending content</li><li><strong>📺 Trakt Integration</strong>: Full sync with watchlist, collections, watch history, and Next Up</li><li><strong>🎯 Smart Stream Selection</strong>: Automatic quality filtering, reliability tracking, and preference learning</li><li><strong>⏭️ Autoplay Next Episode</strong>: Configurable auto-play with background stream pre-loading</li><li><strong>🎨 Rich Metadata</strong>: TMDb/TVDb integration with posters, fanart, cast information, and ratings</li><li><strong>🌐 Subtitle Support</strong>: Automatic subtitle scraping via AIOStreams backend</li><li><strong>🎥 Trailer Playback</strong>: YouTube trailer integration for content preview</li><li><strong>🔎 Recent Searches</strong>: Search All, Movies, and Series separately; up to 20 recent query-and-scope pairs can be rerun, removed individually, or cleared.</li><li><strong>⭐ Native Favorites</strong>: Browse your Kodi Favorites that belong to AIOStreams and manage them with Kodi’s standard favorite controls.</li></ul>
+<hr>
+<h2 id="required-configuration">Required Configuration</h2>
+<h3 id="1-aiostreams-backend">1. AIOStreams Backend</h3>
+<p>You <strong>must</strong> have a running AIOStreams instance configured with:</p>
+<h4 id="required-components">Required Components:</h4>
+<ul><li><strong>Metadata Provider</strong>: Should provide stable IMDb IDs; TMDb IDs are also supported when reopening a favorite under a different configuration.</li><li><strong>Recommended metadata provider</strong>: <a href="https://github.com/cedya77/aiometadata">AIOMetadata</a> provides rich metadata, catalog support, and IMDb ID integration.</li><li><strong>Search Provider</strong>: Configure at least one search provider; AIOMetadata provides unified search across content types.</li><li><strong>Scraper</strong>: At least one torrent indexer or debrid service configured</li></ul>
+<h4 id="backend-setup">Backend Setup:</h4>
+<ol><li>Deploy AIOStreams (self-hosted or via ElfHosted)</li><li>Configure AIOMetadata as your metadata provider</li><li>Set up scrapers (torrent indexers, debrid services)</li><li>Ensure IMDB tags are enabled in metadata responses</li></ol>
+<h3 id="2-plugin-settings">2. Plugin Settings</h3>
+<p>Access settings via: <strong>Add-ons → Video add-ons → AIOStreams → Right-click → Settings</strong></p>
+<h4 id="essential-settings">Essential Settings:</h4>
+<p><strong>General</strong></p>
+<ul><li><strong>AIOStreams Host URL</strong>: Your backend URL (e.g., <code>https://aiostreams.elfhosted.com</code>)</li><li><strong>API Timeout</strong>: How long the add-on waits for a backend response</li></ul>
+<p><strong>Playback</strong></p>
+<ul><li><strong>Preferred Quality</strong>: Set your preferred stream quality (4K, 1080p, 720p, etc.)</li><li><strong>Minimum Quality</strong>: Lowest acceptable quality (filters out lower quality streams)</li><li><strong>Auto-play</strong>: Enable automatic stream selection based on preferences</li></ul>
+<p><strong>Trakt Integration</strong> (Optional)</p>
+<ul><li><strong>Enable Trakt</strong>: Authorize your Trakt account for sync features</li><li><strong>Auto-Sync</strong>: Automatic synchronization of watch history and progress</li><li><strong>Auto-Sync</strong>: Keeps watch history and progress synchronized in the background</li></ul>
+<hr>
+<h2 id="custom-formatter-option">Custom Formatter Option</h2>
+<p>AIOStreams supports <strong>custom stream title formatting</strong> to display stream information exactly how you want it.</p>
+<h3 id="enabling-custom-formatting">Enabling Custom Formatting</h3>
+<ol><li>Go to: <strong>Settings → Playback → Stream Display</strong></li><li>Enable <strong>"Use Custom Formatter"</strong></li><li>Enter your custom format string</li></ol>
+<h3 id="format-specification">Format Specification</h3>
+<p>Use the following custom formatter parameters in your format string, all in the 'Name' section, leave Description empty:</p>
+<pre><code>{stream.resolution::exists[&quot;RESOLUTION: {stream.resolution}&quot;||&quot;&quot;]}
+{service.name::exists[&quot;SERVICE: {service.name}&quot;||&quot;&quot;]}
+{addon.name::exists[&quot;ADDON: {addon.name}&quot;||&quot;&quot;]}
+{stream.size::&gt;0[&quot;SIZE: {stream.size::bytes}&quot;||&quot;&quot;]}
+{stream.proxied::istrue[&quot;PROXIED: YES&quot;||&quot;&quot;]}{stream.proxied::isfalse[&quot;PROXIED: NO&quot;||&quot;&quot;]}
+{service.cached::istrue[&quot;CACHED: YES&quot;||&quot;&quot;]}{service.cached::isfalse[&quot;CACHED:NO&quot;||&quot;&quot;]}
+{stream.library::istrue[&quot;IN LIBRARY: YES&quot;||&quot;&quot;]}{stream.library::isfalse[&quot;IN LIBRARY: NO&quot;||&quot;&quot;]}
+{stream.duration::&gt;0[&quot;DURATION: {stream.duration::time} &quot;||&quot;&quot;]}
+{stream.quality::exists[&quot;VIDEO: {stream.quality}&quot;||&quot;&quot;]} | {stream.visualTags} | {stream.encode}
+{stream.audioTags::exists[&quot;AUDIO: {stream.audioTags::join(&#x27; | &#x27;)} | {stream.audioChannels}&quot;||&quot;&quot;]}{stream.languages::exists[&quot; | {stream.languages::join(&#x27; / &#x27;)}&quot;||&quot;&quot;]}
+{stream.indexer::exists[&quot;INDEXER: {stream.indexer} &quot;||&quot;&quot;]}{stream.seeders::exists[&quot;| {stream.seeders} Seeders&quot;||&quot;&quot;]}{stream.age::exists[&quot; | {stream.age} Old&quot;||&quot;&quot;]}
+{stream.filename::exists[&quot;FILENAME: {stream.filename}&quot;||&quot;&quot;]}</code></pre>
+<hr>
+<h2 id="installation">Installation</h2>
+<ol><li>In Kodi, open <strong>Settings → File manager → Add source</strong>, enter <code>https://voidxela.github.io/AIOStreamsKODI/</code>, and give it a memorable name such as <strong>AIOStreams</strong>.</li><li>Open <strong>Settings → Add-ons → Install from zip file</strong>, select the <strong>AIOStreams</strong> source, then select <a href="repository.aiostreams-1.1.30.zip">repository.aiostreams-1.1.30.zip</a>. The same link can be downloaded in a browser when needed.</li><li>Confirm the repository installation.</li><li>Open <strong>Settings → Add-ons → Install from repository → AIOStreams Repository → Video add-ons → AIOStreams</strong>, then select <strong>Install</strong>.</li></ol>
+<hr>
+<h2 id="quick-start-guide">Quick Start Guide</h2>
+<ol><li><strong>Install the plugin</strong> (see Installation above)</li><li><strong>Configure AIOStreams backend</strong> with AIOMetadata</li><li><strong>Open plugin settings</strong> and enter your backend URL</li><li><strong>(Optional) Authorize Trakt</strong> for sync features</li><li><strong>Browse catalogs</strong> or search for content</li><li><strong>Select a stream</strong> and enjoy!</li></ol>
+<hr>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="no-streams-found">No Streams Found</h3>
+<ul><li>Verify your AIOStreams backend is running and accessible</li><li>Check that scrapers are configured in your backend</li><li>Ensure metadata provider (AIOMetadata) is properly configured</li></ul>
+<h3 id="external-id-errors">External ID Errors</h3>
+<ul><li>Confirm your metadata provider serves stable IMDb or TMDb IDs</li><li>AIOMetadata is recommended for reliable external ID support</li><li>Check backend logs for metadata provider errors</li></ul>
+<h3 id="trakt-sync-issues">Trakt Sync Issues</h3>
+<ul><li>Re-authorize Trakt in plugin settings</li><li>Check Trakt API status at <a href="https://trakt.tv/status">trakt.tv/status</a></li><li>Verify automatic sync is enabled and allow it to complete before retrying</li></ul>
+<hr>
+<p><strong>License</strong>: MIT</p>
+</main>
+</body>
+</html>
