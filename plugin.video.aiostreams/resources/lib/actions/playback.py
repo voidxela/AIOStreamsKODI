@@ -9,6 +9,7 @@ import xbmcplugin
 
 from ..media import MediaRef, fallback_metadata_id
 from ..stream_utils import matching_episode_id
+from ..history import HistoryMediaRef
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class PlaybackDependencies:
     get_max_streams: object
     show_source_dialog: object
     origin_fingerprint: object = None
+    history_manager: object = None
 
 
 def _media_params(params, active_origin=None):
@@ -90,43 +92,37 @@ def _add_subtitles(list_item, content_type, media_id, dependencies):
         list_item.setSubtitles(paths)
 
 
-def _episode_scrobble_id(imdb_id, season, episode):
-    if not season or not episode:
-        return imdb_id
-    try:
-        from resources.lib.database.trakt_sync import TraktSyncDatabase
-        database = TraktSyncDatabase()
-        show = database.fetchone('SELECT trakt_id FROM shows WHERE imdb_id=?', (imdb_id,))
-        if show:
-            item = database.fetchone(
-                'SELECT imdb_id FROM episodes WHERE show_trakt_id=? AND season=? AND episode=?',
-                (show['trakt_id'], int(season), int(episode)),
-            )
-            if item and item['imdb_id']:
-                return item['imdb_id']
-    except Exception as error:
-        xbmc.log(f'[AIOStreams] Unable to resolve episode IMDb ID: {error}', xbmc.LOGWARNING)
-    return imdb_id
+def _history_media(content_type, media_id, imdb_id, season, episode, title, dependencies):
+    if content_type == 'movie':
+        return HistoryMediaRef('movie', imdb_id=imdb_id, metadata_id=media_id,
+                               origin_fingerprint=dependencies.origin_fingerprint, title=title or '')
+    show_metadata_id = media_id
+    suffix = ':{}:{}'.format(season, episode)
+    if season is not None and episode is not None and str(media_id).endswith(suffix):
+        show_metadata_id = str(media_id)[:-len(suffix)]
+    return HistoryMediaRef('episode', show_imdb_id=imdb_id, season=season, episode=episode,
+                           metadata_id=show_metadata_id, origin_fingerprint=dependencies.origin_fingerprint,
+                           title=title or '', show_title=title or '')
 
 
-def _set_media_info(content_type, imdb_id, season, episode, dependencies):
+def _set_media_info(media, dependencies):
     if not dependencies.has_modules:
         return
     player = dependencies.get_player()
     if player:
-        player.set_media_info(
-            'movie' if content_type == 'movie' else 'episode',
-            imdb_id if content_type == 'movie' else _episode_scrobble_id(imdb_id, season, episode),
-            season,
-            episode,
-        )
+        player.set_media_info(media, history_manager=dependencies.history_manager)
 
 
-def _play_item(stream_url, content_type, media_id, imdb_id, season, episode, dependencies, direct=False):
+def _play_item(stream_url, content_type, media_id, imdb_id, season, episode, dependencies, direct=False, title=''):
     list_item = xbmcgui.ListItem(path=stream_url)
     list_item.setProperty('IsPlayable', 'true')
     _add_subtitles(list_item, content_type, media_id, dependencies)
-    _set_media_info(content_type, imdb_id, season, episode, dependencies)
+    history_media = _history_media(content_type, media_id, imdb_id, season, episode, title, dependencies)
+    if dependencies.history_manager and dependencies.get_setting('auto_resume', 'true') == 'true':
+        resume = dependencies.history_manager.get_resume(history_media)
+        if resume:
+            list_item.setProperty('StartOffset', str(resume.position))
+    _set_media_info(history_media, dependencies)
     if direct:
         xbmc.Player().play(stream_url, list_item)
         return True
@@ -176,14 +172,14 @@ def _show_dialog(content_type, media_id, stream_data, title, poster, fanart, cle
         dependencies.get_stream_manager().record_stream_selection(streams[selected].get('name', ''))
     success = play_stream_by_index(
         content_type, media_id, stream_data, selected, dependencies,
-        use_player=not from_playable, imdb_id=imdb_id, season=season, episode=episode,
+        use_player=not from_playable, imdb_id=imdb_id, season=season, episode=episode, title=title,
     )
     if success:
         return success
     for index in range(selected + 1, len(streams)):
         if play_stream_by_index(
             content_type, media_id, stream_data, index, dependencies,
-            use_player=not from_playable, imdb_id=imdb_id, season=season, episode=episode,
+            use_player=not from_playable, imdb_id=imdb_id, season=season, episode=episode, title=title,
         ):
             return True
     xbmcgui.Dialog().notification('AIOStreams', 'All streams failed', xbmcgui.NOTIFICATION_ERROR)
@@ -242,7 +238,7 @@ def play(params, dependencies):
             xbmcgui.Dialog().notification('AIOStreams', 'No playable URL found', xbmcgui.NOTIFICATION_ERROR)
             return None
         _save_retry_context(stream_data['streams'], content_type, imdb_id, season, episode, title, poster, fanart, clearlogo)
-        return _play_item(stream_url, content_type, media_id, imdb_id, season, episode, dependencies, direct=dependencies.handle < 0)
+        return _play_item(stream_url, content_type, media_id, imdb_id, season, episode, dependencies, direct=dependencies.handle < 0, title=title)
     except Exception as error:
         xbmc.log(f'[AIOStreams] Play error: {error}', xbmc.LOGERROR)
         xbmcgui.Dialog().notification('AIOStreams', f'Playback error: {error}', xbmcgui.NOTIFICATION_ERROR)
@@ -273,7 +269,7 @@ def play_first(params, dependencies):
         if not url:
             xbmcgui.Dialog().notification('AIOStreams', 'No playable URL found', xbmcgui.NOTIFICATION_ERROR)
             return None
-        return _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies, direct=True)
+        return _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies, direct=True, title=params.get('title', ''))
     except Exception as error:
         xbmc.log(f'[AIOStreams] Play first error: {error}', xbmc.LOGERROR)
         xbmcgui.Dialog().notification('AIOStreams', f'Playback error: {error}', xbmcgui.NOTIFICATION_ERROR)
@@ -316,7 +312,7 @@ def select_stream(params, dependencies):
 
 
 def play_stream_by_index(content_type, media_id, stream_data, index, dependencies, use_player=False,
-                         imdb_id=None, season=None, episode=None):
+                         imdb_id=None, season=None, episode=None, title=''):
     """Play a selected stream and return whether Kodi accepted the handoff."""
     streams = stream_data.get('streams', [])
     if index < 0 or index >= len(streams):
@@ -333,9 +329,9 @@ def play_stream_by_index(content_type, media_id, stream_data, index, dependencie
         if content_type == 'series' and ':' in media_id:
             imdb_id, season, episode = (media_id.split(':') + [None, None])[:3]
     if not use_player:
-        return _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies)
+        return _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies, title=title)
 
-    _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies, direct=True)
+    _play_item(url, content_type, media_id, imdb_id, season, episode, dependencies, direct=True, title=title)
     player = xbmc.Player()
     monitor = xbmc.Monitor()
     started = False

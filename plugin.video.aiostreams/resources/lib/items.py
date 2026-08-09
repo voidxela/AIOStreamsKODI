@@ -88,11 +88,12 @@ class PresentationDependencies:
 class ItemState:
     """Precomputed, optional user state used while presenting one item."""
 
-    trakt_available: bool = False
+    history_available: bool = False
     watched: bool = False
-    watchlisted: bool = False
     percent_played: float = 0
     resume_time: float = 0
+    watchlist_available: bool = False
+    watchlisted: bool = False
     rating: object = None
     user_rating: object = None
 
@@ -412,15 +413,15 @@ def create_listitem_with_context(meta, content_type, action_url, dependencies):
                 play_url = f'plugin://plugin.video.youtube/play/?video_id={youtube_id}'
                 context_menu.append(('[COLOR lightcoral]View Trailer[/COLOR]', f'PlayMedia({play_url})'))
 
-        # Trakt context menus if authorized
-        if state.trakt_available and trakt_id:
+        if state.history_available and trakt_id:
             if state.watched:
                 context_menu.append(('[COLOR lightcoral]Mark Movie As Unwatched[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_mark_unwatched", media_type=content_type, imdb_id=trakt_id)})'))
+                                    f'RunPlugin({dependencies.get_url(action="history_mark_unwatched", media_type=content_type, imdb_id=trakt_id, tmdb_id=media.tmdb_id, meta_id=media.metadata_id, title=title)})'))
             else:
                 context_menu.append(('[COLOR lightcoral]Mark Movie As Watched[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_mark_watched", media_type=content_type, imdb_id=trakt_id)})'))
+                                    f'RunPlugin({dependencies.get_url(action="history_mark_watched", media_type=content_type, imdb_id=trakt_id, tmdb_id=media.tmdb_id, meta_id=media.metadata_id, title=title)})'))
 
+        if state.watchlist_available and trakt_id:
             if state.watchlisted:
                 context_menu.append(('[COLOR lightcoral]Remove from Watchlist[/COLOR]',
                                     f'RunPlugin({dependencies.get_url(action="trakt_remove_watchlist", media_type=content_type, imdb_id=trakt_id)})'))
@@ -442,23 +443,15 @@ def create_listitem_with_context(meta, content_type, action_url, dependencies):
                 play_url = f'plugin://plugin.video.youtube/play/?video_id={youtube_id}'
                 context_menu.append(('[COLOR lightcoral]View Trailer[/COLOR]', f'PlayMedia({play_url})'))
 
-        # Trakt context menus if authorized
-        # Trakt context menus if authorized
-        if state.trakt_available and trakt_id:
-            if state.watched:
-                context_menu.append(('[COLOR lightcoral]Mark Show As Unwatched[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_mark_unwatched", media_type=content_type, imdb_id=trakt_id)})'))
-            else:
-                context_menu.append(('[COLOR lightcoral]Mark Show As Watched[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_mark_watched", media_type=content_type, imdb_id=trakt_id)})'))
-
+        if state.history_available and trakt_id:
             # Stop Watching (Drop) and Unhide options for shows
             if content_type in ['show', 'series', 'tvshow']:
                 context_menu.append(('[COLOR lightcoral]Stop Watching (Drop) Trakt[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_hide_from_progress", media_type="series", imdb_id=trakt_id)})'))
-                context_menu.append(('[COLOR lightgreen]Resume Watching (Unhide) Trakt[/COLOR]',
-                                    f'RunPlugin({dependencies.get_url(action="trakt_unhide_from_progress", media_type="series", imdb_id=trakt_id)})'))
+                                    f'RunPlugin({dependencies.get_url(action="history_hide_from_next_up", media_type="series", imdb_id=trakt_id, tmdb_id=media.tmdb_id, meta_id=media.metadata_id, title=title)})'))
+                context_menu.append(('[COLOR lightgreen]Resume Watching (Unhide)[/COLOR]',
+                                    f'RunPlugin({dependencies.get_url(action="history_unhide_from_next_up", media_type="series", imdb_id=trakt_id, tmdb_id=media.tmdb_id, meta_id=media.metadata_id, title=title)})'))
 
+        if state.watchlist_available and trakt_id:
             if state.watchlisted:
                 context_menu.append(('[COLOR lightcoral]Remove from Watchlist[/COLOR]',
                                     f'RunPlugin({dependencies.get_url(action="trakt_remove_watchlist", media_type=content_type, imdb_id=trakt_id)})'))

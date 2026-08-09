@@ -10,6 +10,7 @@ import xbmcplugin
 from ..items import media_action_params
 from ..media import MediaRef, fallback_metadata_id
 from ..native_favorites import list_aiostreams_favorites
+from ..history import HistoryMediaRef
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class BrowseDependencies:
     create_listitem: object
     origin_fingerprint: object = None
     get_native_favorites: object = list_aiostreams_favorites
+    history_manager: object = None
 
 
 def index(params, dependencies):
@@ -119,14 +121,13 @@ def youtube_menu(params, dependencies):
 
 def movie_lists(params, dependencies):
     """Render the movie-list menu."""
-    from resources.lib import trakt
     xbmcplugin.setPluginCategory(dependencies.handle, 'Movie Lists')
     xbmcplugin.setContent(dependencies.handle, 'videos')
     menu_items = [
         ('AIOStreams Catalogs', dependencies.get_url(action='catalogs', content_type='movie'),
          'DefaultMovies.png'),
     ]
-    if dependencies.has_modules and trakt.get_access_token():
+    if dependencies.has_modules:
         menu_items.append(
             ('Watchlist - Trakt', dependencies.get_url(action='trakt_watchlist', media_type='movies'),
              'DefaultMovies.png')
@@ -136,16 +137,18 @@ def movie_lists(params, dependencies):
 
 def series_lists(params, dependencies):
     """Render the series-list menu."""
-    from resources.lib import trakt
     xbmcplugin.setPluginCategory(dependencies.handle, 'Series Lists')
     xbmcplugin.setContent(dependencies.handle, 'videos')
     menu_items = [
         ('AIOStreams Catalogs', dependencies.get_url(action='catalogs', content_type='series'),
          'DefaultTVShows.png'),
     ]
-    if dependencies.has_modules and trakt.get_access_token():
+    if dependencies.history_manager and dependencies.history_manager.status().available:
         menu_items.extend([
-            ('Next Up - Trakt', dependencies.get_url(action='trakt_next_up'), 'DefaultTVShows.png'),
+            ('Next Up', dependencies.get_url(action='history_next_up'), 'DefaultTVShows.png'),
+        ])
+    if dependencies.has_modules:
+        menu_items.extend([
             ('Watchlist - Trakt', dependencies.get_url(action='trakt_watchlist', media_type='shows'),
              'DefaultTVShows.png'),
         ])
@@ -339,9 +342,21 @@ def browse_show(params, dependencies):
     return None
 
 
+def _history_episode(show_ref, episode, season, dependencies, series_name=''):
+    return HistoryMediaRef(
+        'episode', imdb_id=episode.get('imdb_id') or episode.get('imdb'),
+        tmdb_id=episode.get('tmdb_id') or episode.get('tmdb'), show_imdb_id=show_ref.imdb_id,
+        show_tmdb_id=show_ref.tmdb_id, season=season, episode=episode.get('episode'),
+        # Metadata fallback must identify the show, not the individual video,
+        # otherwise episode identity would change per episode/configuration.
+        metadata_id=show_ref.metadata_id,
+        origin_fingerprint=dependencies.origin_fingerprint,
+        title=episode.get('title') or episode.get('name') or '', show_title=series_name or show_ref.title,
+    )
+
+
 def show_seasons(params, dependencies):
-    """Render a show's seasons with artwork and Trakt watch state."""
-    from resources.lib import trakt
+    """Render a show's seasons with provider-neutral watch state."""
 
     meta_id = _route_metadata_id(params, dependencies)
     if not meta_id:
@@ -373,19 +388,14 @@ def show_seasons(params, dependencies):
         xbmcplugin.endOfDirectory(dependencies.handle)
         return None
 
-    show_progress = None
-    if dependencies.has_modules and trakt.get_access_token():
-        show_progress = trakt.get_show_progress(show_ref.imdb_id or meta_id)
+    if dependencies.history_manager:
+        dependencies.history_manager.ingest_episode_catalog(show_ref_to_history(show_ref, dependencies, series_name), meta.get('videos', []))
 
     for season_num in sorted(seasons):
         episode_count = len(seasons[season_num])
-        aired, completed = 0, 0
-        if show_progress:
-            for season_data in show_progress.get('seasons', []):
-                if season_data.get('number') == season_num:
-                    aired = season_data.get('aired', 0)
-                    completed = season_data.get('completed', 0)
-                    break
+        aired = len(seasons[season_num])
+        completed = sum(1 for item in seasons[season_num] if dependencies.history_manager and
+                        dependencies.history_manager.get_state(_history_episode(show_ref, item, season_num, dependencies, series_name)).watched)
         is_season_watched = aired > 0 and aired == completed
         if dependencies.has_modules:
             season_label = dependencies.format_season_title(
@@ -417,15 +427,6 @@ def show_seasons(params, dependencies):
             list_item.setProperty('WatchedOverlay', 'OverlayWatched.png')
         _set_season_art(list_item, meta, meta_id, dependencies)
 
-        context_menu = []
-        if dependencies.has_modules and trakt.get_access_token() and show_ref.imdb_id:
-            action = 'trakt_mark_unwatched' if is_season_watched else 'trakt_mark_watched'
-            label = 'Mark Season As Unwatched' if is_season_watched else 'Mark Season As Watched'
-            context_menu.append((
-                f'[COLOR lightcoral]{label}[/COLOR]',
-                f'RunPlugin({dependencies.get_url(action=action, media_type="show", imdb_id=show_ref.imdb_id, season=season_num)})',
-            ))
-        list_item.addContextMenuItems(context_menu)
         url = dependencies.get_url(
             action='show_episodes',
             **media_action_params('show_episodes', show_ref, season=season_num),
@@ -437,34 +438,7 @@ def show_seasons(params, dependencies):
 
 
 def _get_series_meta(meta_id, dependencies):
-    """Prefer the local Trakt SyncDB before requesting series metadata."""
-    try:
-        from resources.lib.database.trakt_sync import TraktSyncDatabase
-
-        db = TraktSyncDatabase()
-        if isinstance(meta_id, int) or (isinstance(meta_id, str) and meta_id.isdigit()):
-            trakt_id = int(meta_id)
-        elif isinstance(meta_id, str) and meta_id.startswith('tt'):
-            trakt_id = db.get_trakt_id_for_item(meta_id, 'show')
-        else:
-            trakt_id = None
-        if trakt_id:
-            show_row = db.get_show(trakt_id)
-            if show_row and show_row.get('metadata'):
-                show_meta = show_row['metadata']
-                episode_rows = db.get_episodes_for_show(trakt_id)
-                if episode_rows:
-                    videos = []
-                    for row in episode_rows:
-                        episode = row.get('metadata', {}) or {}
-                        episode.setdefault('season', row['season'])
-                        episode.setdefault('episode', row['episode'])
-                        videos.append(episode)
-                    show_meta['videos'] = videos
-                    xbmc.log(f'[AIOStreams] Loaded {len(videos)} episodes from local SyncDB', xbmc.LOGINFO)
-                    return {'meta': show_meta}
-    except Exception as error:
-        xbmc.log(f'[AIOStreams] SyncDB optimization error: {error}', xbmc.LOGERROR)
+    """Load series metadata from the configured AIOStreams backend only."""
     return dependencies.get_meta('series', meta_id)
 
 
@@ -497,10 +471,14 @@ def _set_season_art(list_item, meta, meta_id, dependencies):
         list_item.setArt({'fanart': meta['background']})
 
 
+def show_ref_to_history(show_ref, dependencies, title=''):
+    return HistoryMediaRef('episode', show_imdb_id=show_ref.imdb_id, show_tmdb_id=show_ref.tmdb_id,
+                           metadata_id=show_ref.metadata_id, origin_fingerprint=dependencies.origin_fingerprint,
+                           show_title=title or show_ref.title)
+
+
 def show_episodes(params, dependencies):
     """Render a season's episodes with exact episode playback identities."""
-    from resources.lib import trakt
-
     meta_id = params.get('meta_id')
     season_param = params.get('season')
     if not meta_id or not season_param:
@@ -541,29 +519,20 @@ def show_episodes(params, dependencies):
         return None
     episodes.sort(key=lambda episode: episode.get('episode', 0))
 
-    watched_episodes = set()
-    if dependencies.has_modules and trakt.get_access_token():
-        show_progress = trakt.get_show_progress(show_ref.imdb_id or meta_id)
-        if show_progress:
-            for season_data in show_progress.get('seasons', []):
-                if season_data.get('number') == season:
-                    watched_episodes = {
-                        episode.get('number') for episode in season_data.get('episodes', [])
-                        if episode.get('completed', False)
-                    }
-                    break
-        trakt.is_in_watchlist('series', show_ref.imdb_id or meta_id)
+    if dependencies.history_manager:
+        dependencies.history_manager.ingest_episode_catalog(show_ref_to_history(show_ref, dependencies, series_name), meta.get('videos', []))
 
     for episode in episodes:
-        _add_episode(episode, season, meta_id, meta, show_ref, series_name, watched_episodes, dependencies)
+        _add_episode(episode, season, meta_id, meta, show_ref, series_name, dependencies)
     xbmcplugin.endOfDirectory(dependencies.handle)
     return None
 
 
-def _add_episode(episode, season, meta_id, meta, show_ref, series_name, watched_episodes, dependencies):
+def _add_episode(episode, season, meta_id, meta, show_ref, series_name, dependencies):
     episode_num = episode.get('episode', 0)
     raw_title = episode.get('title', f'Episode {episode_num}')
-    is_watched = episode_num in watched_episodes
+    state = dependencies.history_manager.get_state(_history_episode(show_ref, episode, season, dependencies, series_name)) if dependencies.history_manager else None
+    is_watched = bool(state and state.watched)
     if dependencies.has_modules:
         label = dependencies.format_episode_title(episode_num, raw_title, is_watched, 100 if is_watched else 0)
     else:
@@ -657,11 +626,9 @@ def _set_episode_art(list_item, episode, meta, meta_id, dependencies):
 
 
 def _add_episode_watch_menu(context_menu, is_watched, show_ref, season, episode_num, dependencies):
-    from resources.lib import trakt
-
-    if not (dependencies.has_modules and trakt.get_access_token() and show_ref.imdb_id):
+    if not (dependencies.history_manager and dependencies.history_manager.status().available and show_ref.imdb_id):
         return
-    action = 'trakt_mark_unwatched' if is_watched else 'trakt_mark_watched'
+    action = 'history_mark_unwatched' if is_watched else 'history_mark_watched'
     label = 'Mark Episode As Unwatched' if is_watched else 'Mark Episode As Watched'
     context_menu.append((
         f'[COLOR lightcoral]{label}[/COLOR]',

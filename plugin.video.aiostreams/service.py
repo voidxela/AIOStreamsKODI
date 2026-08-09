@@ -12,6 +12,7 @@ import platform
 from collections import deque
 from resources.lib.monitor import AIOStreamsPlayer
 from resources.lib.native_favorites import FavoritesDisplayPoller, list_aiostreams_favorites
+from resources.lib.history import HistoryManager
 
 
 class BackgroundTaskQueue:
@@ -199,7 +200,10 @@ class AIOStreamsService:
         """Initialize service."""
         self.addon = xbmcaddon.Addon()
         self.monitor = AIOStreamsMonitor(self)
-        self.player = AIOStreamsPlayer()
+        self.history_manager = HistoryManager(
+            lambda name, default='': self.addon.getSetting(name) or default,
+        )
+        self.player = AIOStreamsPlayer(self.history_manager)
         
         # Replace the global PLAYER instance in monitor.py with our persistent one
         # This ensures addon.py uses the same player instance that receives callbacks
@@ -334,9 +338,9 @@ class AIOStreamsService:
         if not self.auto_sync_enabled:
             return False
 
-        # Check if Trakt is authorized
-        trakt_token = self.addon.getSetting('trakt_token')
-        if not trakt_token:
+        status = self.history_manager.status()
+        legacy_watchlist_sync = bool(self.addon.getSetting('trakt_token'))
+        if not (status.capabilities.synchronization and status.available) and not legacy_watchlist_sync:
             return False
 
         # Check if enough time has passed since last sync
@@ -348,19 +352,25 @@ class AIOStreamsService:
 
     def perform_sync(self, force=False):
         """
-        Perform Trakt sync.
+        Synchronize the selected history provider and legacy Trakt library data.
 
         Args:
             force: If True, bypass throttle check
         """
         try:
-            xbmc.log('[AIOStreams Service] Starting automatic Trakt sync', xbmc.LOGINFO)
-
-            # Import here to avoid circular imports
-            from resources.lib.database.trakt_sync.activities import TraktSyncDatabase
-
-            db = TraktSyncDatabase()
-            result = db.sync_activities(silent=True, force=force)
+            status = self.history_manager.status()
+            if status.capabilities.synchronization and status.available:
+                xbmc.log('[AIOStreams Service] Synchronizing history provider {}'.format(status.provider_id), xbmc.LOGINFO)
+                result = self.history_manager.sync(force)
+                result = result.succeeded
+            elif self.addon.getSetting('trakt_token'):
+                # Watchlists remain a separately Trakt-owned feature.  The
+                # legacy SyncDB is retained solely for that compatibility path.
+                xbmc.log('[AIOStreams Service] Synchronizing legacy Trakt library data', xbmc.LOGINFO)
+                from resources.lib.database.trakt_sync.activities import TraktSyncDatabase
+                result = TraktSyncDatabase().sync_activities(silent=True, force=force)
+            else:
+                return
 
             if result is None:
                 xbmc.log('[AIOStreams Service] Sync throttled (too soon since last sync)', xbmc.LOGDEBUG)

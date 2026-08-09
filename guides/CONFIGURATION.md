@@ -59,6 +59,20 @@ Keep a secure note of your specific AIOStreams instance details to ensure seamle
 - **UUID**: `[Your Instance UUID]`
 - **Password**: `[Your Instance Password]`
 
+## History & Progress
+
+New profiles use **Local History**, stored in the add-on profile's `user_state.db`.
+It tracks watched state, resume points, and Next Up without sending playback
+events to a third party. Select **Disabled** in *History & Progress* to turn
+off history UI and writes entirely.
+
+Existing profiles that already have a valid user-configured Trakt token are
+migrated once to the **legacy Trakt history** compatibility provider. The
+separate Trakt watchlist integration remains available regardless of the
+selected history provider. Use *Import Cached Trakt History into Local History*
+only when you explicitly want to copy stable watched/resume cache data; it does
+not copy collections, ratings, or watchlists.
+
 ---
 
 ## Troubleshooting Manifest Updates

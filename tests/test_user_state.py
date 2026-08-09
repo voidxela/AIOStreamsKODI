@@ -31,7 +31,7 @@ class UserStateTests(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
-    def test_schema_contains_only_recent_searches(self):
+    def test_schema_contains_search_and_history_tables(self):
         self.assertTrue(self.state.record_search('Arrival', 'movies'))
         with sqlite3.connect(self.database_path) as connection:
             version = connection.execute('SELECT version FROM schema_version').fetchone()[0]
@@ -41,8 +41,11 @@ class UserStateTests(unittest.TestCase):
                 )
             }
 
-        self.assertEqual(1, version)
-        self.assertEqual({'schema_version', 'search_history'}, tables)
+        self.assertEqual(2, version)
+        self.assertEqual(
+            {'schema_version', 'search_history', 'history_items', 'history_series', 'history_episode_catalog'},
+            tables,
+        )
 
     def test_search_history_persists_deduplicates_orders_and_applies_limit(self):
         self.state.record_search('  The   Last of Us ', 'shows')
