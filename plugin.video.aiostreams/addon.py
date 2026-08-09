@@ -26,6 +26,8 @@ try:
     from resources.lib.actions import maintenance as maintenance_actions
     from resources.lib.actions import playback as playback_actions
     from resources.lib.actions import trakt as trakt_actions
+    from resources.lib.actions import history as history_actions
+    from resources.lib.history import HistoryManager, HistoryMediaRef
 
     from resources.lib.gui import show_source_select_dialog
     from resources.lib.clearlogo import clear_clearlogo_cache, get_cached_clearlogo_path
@@ -78,6 +80,18 @@ fetch_metadata_parallel = plugin_runtime.fetch_metadata_parallel
 _aiostreams_client = None
 _aiostreams_client_config = None
 USER_STATE = UserState() if HAS_NEW_MODULES else None
+if HAS_NEW_MODULES and ADDON.getSetting('history_provider_migrated') != 'true':
+    # Preserve authorized legacy users exactly once; every other profile gets
+    # the new Local History default.  The legacy value is intentionally not a
+    # normal new-user setting choice.
+    try:
+        ADDON.setSetting('history_provider', 'trakt_legacy' if ADDON.getSetting('trakt_token') else 'local')
+        ADDON.setSetting('history_provider_migrated', 'true')
+    except Exception:
+        pass
+HISTORY_MANAGER = HistoryManager(get_setting) if HAS_NEW_MODULES else None
+if HISTORY_MANAGER and ADDON.getAddonInfo('profile'):
+    HISTORY_MANAGER.refresh_settings_status(ADDON)
 if USER_STATE and ADDON.getAddonInfo('profile'):
     try:
         USER_STATE.initialize()
@@ -85,34 +99,31 @@ if USER_STATE and ADDON.getAddonInfo('profile'):
         xbmc.log(f'[AIOStreams] Could not initialize user state: {type(error).__name__}', xbmc.LOGWARNING)
 
 
-def _trakt_item_state(media):
-    """Read optional Trakt state outside the list-item presenter."""
-    if not HAS_MODULES or not media.imdb_id:
+def _item_state(media):
+    """Read history and Trakt-watchlist state through separate ownership paths."""
+    if not HAS_MODULES:
         return ItemState()
     try:
+        history_media = HistoryMediaRef(
+            'movie' if media.content_type == 'movie' else 'episode',
+            imdb_id=media.imdb_id if media.content_type == 'movie' else None,
+            tmdb_id=media.tmdb_id if media.content_type == 'movie' else None,
+            show_imdb_id=media.imdb_id if media.content_type != 'movie' else None,
+            show_tmdb_id=media.tmdb_id if media.content_type != 'movie' else None,
+            metadata_id=media.metadata_id, origin_fingerprint=get_aiostreams_client().fingerprint,
+            title=media.title, show_title=media.title if media.content_type != 'movie' else None,
+        )
+        history_state = HISTORY_MANAGER.get_state(history_media) if HISTORY_MANAGER else ItemState()
         from resources.lib import trakt
-        if not trakt.get_access_token():
-            return ItemState()
-        database = trakt.get_trakt_db()
-        if not database:
-            return ItemState(trakt_available=True)
-        if media.content_type == 'movie':
-            watched = database.is_imdb_watched(media.imdb_id, 'movie')
-            record = database.get_movie(media.imdb_id)
-        else:
-            progress = database.get_imdb_show_progress(media.imdb_id) or {}
-            watched = progress.get('aired', 0) > 0 and progress.get('aired') == progress.get('completed')
-            record = database.get_show(media.imdb_id)
-        bookmark = database.get_bookmark(imdb_id=media.imdb_id) or {}
-        metadata = (record or {}).get('metadata') or {}
+        watchlist_available = bool(trakt.get_access_token())
+        watchlisted = trakt.is_in_watchlist(media.content_type, media.imdb_id) if watchlist_available and media.imdb_id else False
         return ItemState(
-            trakt_available=True,
-            watched=watched,
-            watchlisted=database.is_imdb_in_watchlist(media.imdb_id, media.content_type),
-            percent_played=bookmark.get('percent_played', 0) or 0,
-            resume_time=bookmark.get('resume_time', 0) or 0,
-            rating=metadata.get('rating') or metadata.get('imdbRating'),
-            user_rating=metadata.get('user_rating'),
+            history_available=history_state.available,
+            watched=history_state.watched,
+            percent_played=history_state.percent_played,
+            resume_time=history_state.resume_time,
+            watchlist_available=watchlist_available,
+            watchlisted=watchlisted,
         )
     except Exception as error:
         xbmc.log(f'[AIOStreams] Item-state lookup failed: {type(error).__name__}', xbmc.LOGDEBUG)
@@ -131,7 +142,7 @@ def _presentation_dependencies():
         ensure_clearlogo_cached=_ensure_clearlogo_cached,
         redact_identifier=redact_identifier,
         origin_fingerprint=get_aiostreams_client().fingerprint,
-        get_item_state=_trakt_item_state,
+        get_item_state=_item_state,
     )
 
 
@@ -155,6 +166,7 @@ def _search_dependencies():
         get_url=get_url,
         create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
+        addon=ADDON,
         user_state=USER_STATE,
     )
 
@@ -176,6 +188,7 @@ def _playback_dependencies():
         get_max_streams=settings_helpers.get_max_streams,
         show_source_dialog=show_source_select_dialog,
         origin_fingerprint=get_aiostreams_client().fingerprint,
+        history_manager=HISTORY_MANAGER,
     )
 
 
@@ -197,6 +210,7 @@ def _browse_dependencies():
         apply_media_identity=apply_media_identity,
         create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
+        history_manager=HISTORY_MANAGER,
     )
 
 
@@ -233,6 +247,17 @@ def _trakt_dependencies():
         create_listitem=create_listitem_with_context,
         format_date=format_date_with_ordinal,
         clear_trakt_widget_cache=browse_actions.clear_trakt_widget_cache,
+        origin_fingerprint=get_aiostreams_client().fingerprint,
+    )
+
+
+def _history_dependencies():
+    return history_actions.HistoryDependencies(
+        handle=HANDLE,
+        get_url=get_url,
+        history_manager=HISTORY_MANAGER,
+        get_meta=get_meta,
+        create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
     )
 
@@ -353,7 +378,8 @@ ACTION_REGISTRY = {
     # Trakt menu actions
     'trakt_menu': _bind_action(trakt_actions.trakt_menu, _trakt_dependencies),
     'trakt_watchlist': _bind_action(trakt_actions.trakt_watchlist, _trakt_dependencies),
-    'trakt_next_up': _bind_action(trakt_actions.trakt_next_up, _trakt_dependencies),
+    'trakt_next_up': _bind_action(history_actions.next_up, _history_dependencies),
+    'history_next_up': _bind_action(history_actions.next_up, _history_dependencies),
 
     # Trakt authentication
     'trakt_auth': _bind_action(trakt_actions.trakt_auth, _trakt_dependencies),
@@ -362,12 +388,24 @@ ACTION_REGISTRY = {
     # Trakt item actions
     'trakt_add_watchlist': _bind_action(trakt_actions.trakt_add_watchlist, _trakt_dependencies),
     'trakt_remove_watchlist': _bind_action(trakt_actions.trakt_remove_watchlist, _trakt_dependencies),
-    'trakt_mark_watched': _bind_action(trakt_actions.trakt_mark_watched, _trakt_dependencies),
-    'trakt_mark_unwatched': _bind_action(trakt_actions.trakt_mark_unwatched, _trakt_dependencies),
-    'trakt_remove_playback': _bind_action(trakt_actions.trakt_remove_playback, _trakt_dependencies),
-    'trakt_hide_show': _bind_action(trakt_actions.trakt_hide_show, _trakt_dependencies),
-    'trakt_hide_from_progress': _bind_action(trakt_actions.trakt_hide_from_progress, _trakt_dependencies),
-    'trakt_unhide_from_progress': _bind_action(trakt_actions.trakt_unhide_from_progress, _trakt_dependencies),
+    # Historical Trakt route names remain aliases for old favourites/widgets,
+    # but no longer invoke Trakt history code.
+    'trakt_mark_watched': _bind_action(history_actions.mark_watched, _history_dependencies),
+    'trakt_mark_unwatched': _bind_action(history_actions.mark_unwatched, _history_dependencies),
+    'trakt_remove_playback': _bind_action(history_actions.clear_progress, _history_dependencies),
+    'trakt_hide_show': _bind_action(history_actions.hide_from_next_up, _history_dependencies),
+    'trakt_hide_from_progress': _bind_action(history_actions.hide_from_next_up, _history_dependencies),
+    'trakt_unhide_from_progress': _bind_action(history_actions.unhide_from_next_up, _history_dependencies),
+
+    # Provider-neutral history actions.
+    'history_mark_watched': _bind_action(history_actions.mark_watched, _history_dependencies),
+    'history_mark_unwatched': _bind_action(history_actions.mark_unwatched, _history_dependencies),
+    'history_clear_progress': _bind_action(history_actions.clear_progress, _history_dependencies),
+    'history_hide_from_next_up': _bind_action(history_actions.hide_from_next_up, _history_dependencies),
+    'history_unhide_from_next_up': _bind_action(history_actions.unhide_from_next_up, _history_dependencies),
+    'history_clear_local': _bind_action(history_actions.clear_local_history, _history_dependencies),
+    'history_import_legacy_trakt': _bind_action(history_actions.import_legacy_trakt_history, _history_dependencies),
+    'history_configure_provider': _bind_action(history_actions.configure_provider, _history_dependencies),
 
     # Settings/maintenance actions
     'clear_stream_stats': _bind_action(maintenance_actions.clear_stream_stats, _maintenance_dependencies),

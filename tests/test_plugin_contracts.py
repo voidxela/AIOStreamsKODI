@@ -105,7 +105,7 @@ class PluginRouteTests(unittest.TestCase):
     def test_route_table_has_no_lambdas_and_all_action_modules_import(self):
         install()
         from resources.lib import plugin_runtime
-        from resources.lib.actions import browse, maintenance, playback, search, trakt
+        from resources.lib.actions import browse, history, maintenance, playback, search, trakt
 
         modules = {
             'browse_actions': browse,
@@ -113,6 +113,7 @@ class PluginRouteTests(unittest.TestCase):
             'playback_actions': playback,
             'search_actions': search,
             'trakt_actions': trakt,
+            'history_actions': history,
         }
         for module in modules.values():
             self.assertTrue(module.__name__.startswith('resources.lib.actions.'))

@@ -154,6 +154,25 @@ wrong backend.
 
 ### 2. Trakt Integration
 
+> History, playback progress, resume, and Next Up are provider-neutral. Trakt
+> is retained only as a legacy compatibility provider for already-authorized
+> profiles; watchlists remain explicitly Trakt-owned.
+
+### 2.1 History providers
+
+`resources/lib/history/` defines immutable media/state/event models and a
+small provider contract. `HistoryManager` selects Local History, Disabled, or
+the legacy Trakt adapter and applies deterministic fallback only for provider
+availability/authentication failures—not for an empty history result. Local
+History stores primitive SQLite columns in the profile-local `user_state.db`,
+including episode catalog ordering used for Next Up.
+
+The playback monitor emits generic events, and the provider decides whether
+that means a local database update or a legacy remote scrobble. This keeps
+Kodi UI, playback, and actions free of direct Trakt history dependencies.
+
+### 2.2 Legacy Trakt integration
+
 Complete bidirectional sync with Trakt.tv using OAuth 2.0 and delta sync:
 
 **OAuth Flow:**

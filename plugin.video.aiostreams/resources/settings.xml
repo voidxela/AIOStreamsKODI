@@ -13,12 +13,42 @@
         <setting id="subtitle_settings" type="lsep" label="Subtitle Settings"/>
         <setting id="subtitle_languages" type="text" label="Filter Subtitle Languages" default="" help="Enter comma-separated 3-letter country codes (e.g. eng, spa). Leave blank for all languages."/>
 
-        <setting id="resume_settings" type="lsep" label="Resume &amp; Progress"/>
-        <setting id="auto_resume" type="bool" label="Auto Resume Playback" default="true"/>
-        <setting id="auto_mark_watched_percent" type="number" label="Mark Watched at %" default="90"/>
-
         <setting id="autoplay_settings" type="lsep" label="UpNext Integration"/>
         <setting id="autoplay_next_episode" type="bool" label="Signal UpNext (Kodi script.service.upnext)" default="true"/>
+    </category>
+
+    <category label="History">
+        <setting id="history_provider" type="select" label="History Provider" values="local|trakt_legacy|none" default="local"/>
+        <setting id="history_fallback_provider" type="select" label="Fallback Provider" values="local|none" default="local" visible="eq(-1,trakt_legacy)"/>
+
+        <setting id="history_configure_provider" type="action" label="Configure History Provider" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_configure_provider)"/>
+
+        <setting id="local_history_configuration" type="lsep" label="Local History Status" visible="eq(-3,local)"/>
+        <setting id="local_history_database_path" type="text" label="Database Path" default="" enable="false" visible="eq(-4,local)"/>
+        <setting id="local_history_tracked_items" type="text" label="Tracked Items" default="" enable="false" visible="eq(-5,local)"/>
+        <setting id="local_history_watched_items" type="text" label="Watched Items" default="" enable="false" visible="eq(-6,local)"/>
+        <setting id="local_history_resume_points" type="text" label="Resume Points" default="" enable="false" visible="eq(-7,local)"/>
+
+        <setting id="legacy_trakt_configuration" type="lsep" label="Legacy Trakt Status" visible="eq(-8,trakt_legacy)"/>
+        <setting id="legacy_trakt_authorization" type="text" label="Authorization" default="" enable="false" visible="eq(-9,trakt_legacy)"/>
+        <setting id="legacy_trakt_account" type="text" label="Account" default="" enable="false" visible="eq(-10,trakt_legacy)"/>
+        <setting id="legacy_trakt_credentials" type="text" label="Client Credentials" default="" enable="false" visible="eq(-11,trakt_legacy)"/>
+        <setting id="legacy_trakt_background_sync" type="text" label="Background Sync" default="" enable="false" visible="eq(-12,trakt_legacy)"/>
+
+        <setting id="disabled_history_configuration" type="lsep" label="Disabled History Status" visible="eq(-13,none)"/>
+        <setting id="disabled_history_status" type="text" label="Status" default="" enable="false" visible="eq(-14,none)"/>
+
+        <setting id="history_playback_controls" type="lsep" label="Playback Behavior"/>
+        <setting id="track_playback_progress" type="bool" label="Trace Playback Progress" default="true"/>
+        <setting id="auto_resume" type="bool" label="Auto Resume Playback" default="true"/>
+        <setting id="auto_mark_watched_percent" type="number" label="Mark Watched At Percentage" default="90"/>
+
+        <setting id="history_maintenance" type="lsep" label="History Maintenance"/>
+        <setting id="clear_local_history" type="action" label="Clear Local History" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_clear_local)"/>
+        <setting id="import_cached_trakt_history" type="action" label="Import Cached Trakt History into Local History" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_import_legacy_trakt)"/>
+        <setting id="history_provider_migrated" type="text" default="false" visible="false"/>
+        <setting id="trakt_client_id" type="text" default="" visible="false"/>
+        <setting id="trakt_client_secret" type="text" default="" option="hidden" visible="false"/>
     </category>
 
     <!-- Integrations Settings -->
@@ -33,19 +63,9 @@
         <setting id="base_url" type="text" label="Manifest URL" default="" visible="false"/>
         <setting id="timeout" type="number" label="Request Timeout (seconds)" default="10"/>
 
-        <setting id="trakt_config" type="lsep" label="Trakt Integration"/>
-        <setting id="trakt_client_id" type="text" label="Client ID" default=""/>
-        <setting id="trakt_client_secret" type="text" label="Client Secret" default="" option="hidden"/>
-        <setting id="trakt_authorize" type="action" label="Authorize Trakt" action="RunPlugin(plugin://plugin.video.aiostreams/?action=trakt_auth)"/>
-        <setting id="trakt_revoke" type="action" label="Revoke Authorization" action="RunPlugin(plugin://plugin.video.aiostreams/?action=trakt_revoke)"/>
-
         <setting id="trakt_sync" type="lsep" label="Sync Settings"/>
         <setting id="trakt_sync_auto" type="bool" label="Enable Auto-Sync (Background Service)" default="true"/>
         <setting id="clear_trakt_cache" type="action" label="Clear Trakt Sync Database" action="RunPlugin(plugin://plugin.video.aiostreams/?action=clear_trakt_cache)"/>
-
-        <setting id="trakt_features" type="lsep" label="Trakt Features"/>
-        <setting id="trakt_scrobble" type="bool" label="Enable Scrobbling" default="true"/>
-        <setting id="trakt_auto_mark_watched" type="bool" label="Auto-Mark as Watched (90%+)" default="true"/>
 
         <setting id="trakt_hidden" type="lsep" label="Hidden Settings" visible="false"/>
         <setting id="trakt_token" type="text" label="Access Token" default="" visible="false"/>
