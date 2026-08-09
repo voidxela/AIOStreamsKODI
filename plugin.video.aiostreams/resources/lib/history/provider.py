@@ -8,6 +8,7 @@ from .models import (HistoryMediaRef, HistoryState, NextUpEntry, PlaybackEvent,
 
 class HistoryProvider(Protocol):
     provider_id: str
+    config_setting_ids: tuple
 
     def status(self) -> ProviderStatus: ...
     def configure(self, addon) -> ProviderResult: ...

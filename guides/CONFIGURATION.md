@@ -66,10 +66,11 @@ It tracks watched state, resume points, and Next Up without sending playback
 events to a third party. Select **Disabled** in *History* to turn
 off history UI and writes entirely.
 
-Each provider has a **Configure History Provider** wizard and publishes its
-own read-only status details on this page. Local History shows its database
-path and tracking metrics. The legacy Trakt wizard owns the user-supplied
-client credentials and authorization flow.
+Use **Select History Provider** to persist the active provider, then
+**Configure History Provider** to open its wizard. The active provider
+publishes its own read-only status details on this page. Local History shows
+its database path and tracking metrics. The legacy Trakt wizard owns the
+user-supplied client credentials and authorization flow.
 
 Existing profiles that already have a valid user-configured Trakt token are
 migrated once to the **legacy Trakt history** compatibility provider. The

@@ -12,6 +12,10 @@ from .models import (HistoryMediaRef, HistoryState, NextUpEntry, PlaybackEvent,
 
 class LegacyTraktHistoryProvider:
     provider_id = 'trakt_legacy'
+    config_setting_ids = (
+        'legacy_trakt_authorization', 'legacy_trakt_account',
+        'legacy_trakt_credentials', 'legacy_trakt_background_sync',
+    )
 
     def __init__(self, get_setting=None):
         self._get_setting = get_setting or (lambda name, default='': default)
@@ -69,17 +73,19 @@ class LegacyTraktHistoryProvider:
     def get_config(self):
         status = self.status()
         values = OrderedDict()
-        values['Status'] = 'Authorized' if status.available else 'Authorization required'
+        values['legacy_trakt_authorization'] = 'Authorized' if status.available else 'Authorization required'
         try:
             username = self._trakt().get_trakt_username()
         except Exception:
             username = ''
         if username:
-            values['Account'] = username
+            values['legacy_trakt_account'] = username
+        else:
+            values['legacy_trakt_account'] = 'Not connected'
         client_id = self._get_setting('trakt_client_id', '')
         client_secret = self._get_setting('trakt_client_secret', '')
-        values['Client credentials'] = 'Configured' if client_id and client_secret else 'Required'
-        values['Background sync'] = 'Enabled' if self._get_setting('trakt_sync_auto', 'true') == 'true' else 'Disabled'
+        values['legacy_trakt_credentials'] = 'Configured' if client_id and client_secret else 'Required'
+        values['legacy_trakt_background_sync'] = 'Enabled' if self._get_setting('trakt_sync_auto', 'true') == 'true' else 'Disabled'
         return values
 
     def _unavailable(self):

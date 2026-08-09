@@ -9,6 +9,10 @@ from .storage import LocalHistoryStorage
 
 class LocalHistoryProvider:
     provider_id = 'local'
+    config_setting_ids = (
+        'local_history_database_path', 'local_history_tracked_items',
+        'local_history_watched_items', 'local_history_resume_points',
+    )
 
     def __init__(self, storage=None, watched_threshold=90):
         self.storage = storage or LocalHistoryStorage()
@@ -47,16 +51,21 @@ class LocalHistoryProvider:
     def get_config(self):
         status = self.status()
         values = OrderedDict()
-        values['Status'] = 'Ready' if status.available else 'Unavailable ({})'.format(status.message or 'unknown error')
-        values['Database'] = self.storage.database.database_path
+        values['local_history_database_path'] = self.storage.database.database_path
         if status.available:
             try:
                 metrics = self.storage.statistics()
-                values['Tracked items'] = str(metrics['items'])
-                values['Watched items'] = str(metrics['watched'])
-                values['Resume points'] = str(metrics['resume'])
+                values['local_history_tracked_items'] = str(metrics['items'])
+                values['local_history_watched_items'] = str(metrics['watched'])
+                values['local_history_resume_points'] = str(metrics['resume'])
             except Exception:
-                values['Metrics'] = 'Unavailable'
+                values['local_history_tracked_items'] = 'Unavailable'
+                values['local_history_watched_items'] = 'Unavailable'
+                values['local_history_resume_points'] = 'Unavailable'
+        else:
+            values['local_history_tracked_items'] = 'Unavailable ({})'.format(status.message or 'unknown error')
+            values['local_history_watched_items'] = ''
+            values['local_history_resume_points'] = ''
         return values
 
     def _result(self, operation):

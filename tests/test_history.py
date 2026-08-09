@@ -75,9 +75,12 @@ class LocalHistoryTests(unittest.TestCase):
     def test_local_provider_exposes_ordered_read_only_status(self):
         config = self.provider.get_config()
         self.assertIsInstance(config, OrderedDict)
-        self.assertEqual(['Status', 'Database', 'Tracked items', 'Watched items', 'Resume points'],
+        self.assertEqual([
+            'local_history_database_path', 'local_history_tracked_items',
+            'local_history_watched_items', 'local_history_resume_points',
+        ],
                          list(config))
-        self.assertEqual('0', config['Tracked items'])
+        self.assertEqual('0', config['local_history_tracked_items'])
 
 
 class _UnavailableProvider:
@@ -110,18 +113,26 @@ class HistoryManagerTests(unittest.TestCase):
 
     def test_manager_projects_provider_config_to_read_only_settings(self):
         class Addon:
-            def __init__(self):
-                self.values = {}
+            def __init__(self, values):
+                self.values = values
 
             def setSetting(self, name, value):
                 self.values[name] = value
 
         with tempfile.TemporaryDirectory() as path:
             local = LocalHistoryProvider(LocalHistoryStorage(os.path.join(path, 'user_state.db')))
-            manager = HistoryManager(lambda name, default='': 'local' if name == 'history_provider' else default,
+            settings = {'history_provider': 'local'}
+            manager = HistoryManager(lambda name, default='': settings.get(name, default),
                                      {'local': local})
-            addon = Addon()
+            addon = Addon(settings)
             config = manager.refresh_settings_status(addon)
-            self.assertEqual('Ready', config['Status'])
-            self.assertTrue(addon.values['history_provider_status_1'].startswith('Status: Ready'))
-            self.assertTrue(addon.values['history_provider_status_5'].startswith('Resume points:'))
+            self.assertEqual('0', config['local_history_tracked_items'])
+            self.assertEqual('Local History', addon.values['history_provider_display'])
+            self.assertEqual('0', addon.values['local_history_tracked_items'])
+
+            result = manager.select_provider(addon, 'none')
+            self.assertTrue(result.succeeded)
+            self.assertEqual('none', settings['history_provider'])
+            self.assertEqual('Disabled', settings['history_provider_display'])
+            self.assertEqual('', settings['local_history_tracked_items'])
+            self.assertTrue(settings['disabled_history_status'])

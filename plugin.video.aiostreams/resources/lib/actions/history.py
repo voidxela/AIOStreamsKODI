@@ -145,3 +145,23 @@ def configure_provider(params, dependencies):
     elif result.code.value != 'disabled':
         xbmcgui.Dialog().notification('AIOStreams', 'History provider configuration unavailable', xbmcgui.NOTIFICATION_WARNING)
     return result
+
+
+def select_provider(params, dependencies):
+    """Persist the provider choice before entering a provider-specific wizard."""
+    providers = (
+        ('Local History', 'local'),
+        ('Legacy Trakt History', 'trakt_legacy'),
+        ('Disabled', 'none'),
+    )
+    current_id = dependencies.history_manager.primary.provider_id
+    preselect = next((index for index, (_label, provider_id) in enumerate(providers)
+                      if provider_id == current_id), 0)
+    selected = xbmcgui.Dialog().select('Select History Provider', [label for label, _provider_id in providers], preselect=preselect)
+    if selected < 0:
+        return None
+    result = dependencies.history_manager.select_provider(dependencies.addon, providers[selected][1])
+    if result.succeeded:
+        xbmcgui.Dialog().notification('AIOStreams', 'History provider set to {}'.format(providers[selected][0]),
+                                      xbmcgui.NOTIFICATION_INFO)
+    return result

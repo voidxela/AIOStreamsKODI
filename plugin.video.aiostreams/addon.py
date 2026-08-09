@@ -406,6 +406,7 @@ ACTION_REGISTRY = {
     'history_clear_local': _bind_action(history_actions.clear_local_history, _history_dependencies),
     'history_import_legacy_trakt': _bind_action(history_actions.import_legacy_trakt_history, _history_dependencies),
     'history_configure_provider': _bind_action(history_actions.configure_provider, _history_dependencies),
+    'history_select_provider': _bind_action(history_actions.select_provider, _history_dependencies),
 
     # Settings/maintenance actions
     'clear_stream_stats': _bind_action(maintenance_actions.clear_stream_stats, _maintenance_dependencies),

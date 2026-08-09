@@ -10,6 +10,7 @@ from .models import (HistoryState, ProviderCapabilities, ProviderResult,
 
 class DisabledHistoryProvider:
     provider_id = 'none'
+    config_setting_ids = ('disabled_history_status',)
 
     def status(self):
         return ProviderStatus(self.provider_id, False, False, authenticated=True,
@@ -20,8 +21,7 @@ class DisabledHistoryProvider:
 
     def get_config(self):
         return OrderedDict((
-            ('Status', 'Disabled'),
-            ('Tracking', 'No watched state, resume points, or Next Up are stored'),
+            ('disabled_history_status', 'No watched state, resume points, or Next Up are stored'),
         ))
 
     def get_state(self, media): return HistoryState()
@@ -72,26 +72,48 @@ class HistoryManager:
     def status(self):
         return self.primary.status()
 
+    @property
+    def provider_label(self):
+        return {
+            'local': 'Local History',
+            'trakt_legacy': 'Legacy Trakt History',
+            'none': 'Disabled',
+        }.get(self.primary.provider_id, self.primary.provider_id)
+
     def get_config(self):
         """Return the active provider's ordered, display-ready status values."""
         return self.primary.get_config()
 
-    def refresh_settings_status(self, addon, slots=5):
-        """Project dynamic provider status into fixed read-only Kodi settings."""
+    def refresh_settings_status(self, addon):
+        """Project provider-owned status values into named read-only settings."""
         try:
-            entries = list(self.get_config().items())[:slots]
+            entries = self.get_config()
         except Exception as error:
-            entries = [('Status', 'Unavailable ({})'.format(type(error).__name__))]
-        for index in range(1, slots + 1):
-            value = ''
-            if index <= len(entries):
-                key, detail = entries[index - 1]
-                value = '{}: {}'.format(key, detail)
+            entries = OrderedDict((('disabled_history_status', 'Unavailable ({})'.format(type(error).__name__)),))
+        setting_ids = []
+        for provider in self.providers.values():
+            setting_ids.extend(getattr(provider, 'config_setting_ids', ()))
+        for setting_id in setting_ids:
             try:
-                addon.setSetting('history_provider_status_{}'.format(index), value)
+                addon.setSetting(setting_id, str(entries.get(setting_id, '')))
             except Exception:
                 pass
-        return OrderedDict(entries)
+        try:
+            addon.setSetting('history_provider_display', self.provider_label)
+        except Exception:
+            pass
+        return entries
+
+    def select_provider(self, addon, provider_id):
+        provider_id = (provider_id or '').strip().lower()
+        if provider_id not in self.providers:
+            return ProviderResult(ProviderResultCode.UNSUPPORTED, provider_id, 'Unknown history provider')
+        try:
+            addon.setSetting('history_provider', provider_id)
+        except Exception as error:
+            return ProviderResult(ProviderResultCode.TEMPORARY_FAILURE, provider_id, type(error).__name__)
+        self.refresh_settings_status(addon)
+        return ProviderResult(ProviderResultCode.SUCCESS, provider_id)
 
     def configure(self, addon):
         result = self.primary.configure(addon)
