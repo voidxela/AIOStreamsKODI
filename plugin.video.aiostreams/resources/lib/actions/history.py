@@ -148,7 +148,7 @@ def configure_provider(params, dependencies):
 
 
 def select_provider(params, dependencies):
-    """Persist the provider choice before entering a provider-specific wizard."""
+    """Persist the provider choice, then reload Kodi's cached settings dialog."""
     providers = (
         ('Local History', 'local'),
         ('Legacy Trakt History', 'trakt_legacy'),
@@ -160,8 +160,17 @@ def select_provider(params, dependencies):
     selected = xbmcgui.Dialog().select('Select History Provider', [label for label, _provider_id in providers], preselect=preselect)
     if selected < 0:
         return None
+
+    # Add-on settings are cached while their dialog is open. Closing it before
+    # setSetting prevents the stale in-memory selection from overwriting the
+    # provider choice as the RunPlugin action returns.
+    xbmc.executebuiltin('Dialog.Close(addonsettings)')
+    xbmc.sleep(200)
     result = dependencies.history_manager.select_provider(dependencies.addon, providers[selected][1])
     if result.succeeded:
         xbmcgui.Dialog().notification('AIOStreams', 'History provider set to {}'.format(providers[selected][0]),
                                       xbmcgui.NOTIFICATION_INFO)
+        # Reopen settings from disk so the provider label and its named status
+        # rows visibly switch without requiring a Kodi restart.
+        xbmc.executebuiltin('Addon.OpenSettings(plugin.video.aiostreams)')
     return result
