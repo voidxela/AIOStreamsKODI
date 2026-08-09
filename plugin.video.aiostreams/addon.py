@@ -90,6 +90,8 @@ if HAS_NEW_MODULES and ADDON.getSetting('history_provider_migrated') != 'true':
     except Exception:
         pass
 HISTORY_MANAGER = HistoryManager(get_setting) if HAS_NEW_MODULES else None
+if HISTORY_MANAGER and ADDON.getAddonInfo('profile'):
+    HISTORY_MANAGER.refresh_settings_status(ADDON)
 if USER_STATE and ADDON.getAddonInfo('profile'):
     try:
         USER_STATE.initialize()
@@ -164,6 +166,7 @@ def _search_dependencies():
         get_url=get_url,
         create_listitem=create_listitem_with_context,
         origin_fingerprint=get_aiostreams_client().fingerprint,
+        addon=ADDON,
         user_state=USER_STATE,
     )
 
@@ -402,6 +405,7 @@ ACTION_REGISTRY = {
     'history_unhide_from_next_up': _bind_action(history_actions.unhide_from_next_up, _history_dependencies),
     'history_clear_local': _bind_action(history_actions.clear_local_history, _history_dependencies),
     'history_import_legacy_trakt': _bind_action(history_actions.import_legacy_trakt_history, _history_dependencies),
+    'history_configure_provider': _bind_action(history_actions.configure_provider, _history_dependencies),
 
     # Settings/maintenance actions
     'clear_stream_stats': _bind_action(maintenance_actions.clear_stream_stats, _maintenance_dependencies),

@@ -1,4 +1,6 @@
 """Selection and deterministic fallback for history providers."""
+from collections import OrderedDict
+
 from .legacy_trakt import LegacyTraktHistoryProvider
 from .local import LocalHistoryProvider
 from .models import (HistoryState, ProviderCapabilities, ProviderResult,
@@ -12,6 +14,15 @@ class DisabledHistoryProvider:
     def status(self):
         return ProviderStatus(self.provider_id, False, False, authenticated=True,
                               capabilities=ProviderCapabilities(False, False, False), message='History is disabled')
+
+    def configure(self, addon):
+        return ProviderResult(ProviderResultCode.DISABLED, self.provider_id, 'History is disabled')
+
+    def get_config(self):
+        return OrderedDict((
+            ('Status', 'Disabled'),
+            ('Tracking', 'No watched state, resume points, or Next Up are stored'),
+        ))
 
     def get_state(self, media): return HistoryState()
     def get_resume(self, media): return None
@@ -32,7 +43,7 @@ class HistoryManager:
         threshold = self._get_setting('auto_mark_watched_percent', '90')
         self.providers = {
             'local': providers.get('local') or LocalHistoryProvider(watched_threshold=threshold),
-            'trakt_legacy': providers.get('trakt_legacy') or LegacyTraktHistoryProvider(),
+            'trakt_legacy': providers.get('trakt_legacy') or LegacyTraktHistoryProvider(self._get_setting),
             'none': providers.get('none') or DisabledHistoryProvider(),
         }
 
@@ -60,6 +71,32 @@ class HistoryManager:
 
     def status(self):
         return self.primary.status()
+
+    def get_config(self):
+        """Return the active provider's ordered, display-ready status values."""
+        return self.primary.get_config()
+
+    def refresh_settings_status(self, addon, slots=5):
+        """Project dynamic provider status into fixed read-only Kodi settings."""
+        try:
+            entries = list(self.get_config().items())[:slots]
+        except Exception as error:
+            entries = [('Status', 'Unavailable ({})'.format(type(error).__name__))]
+        for index in range(1, slots + 1):
+            value = ''
+            if index <= len(entries):
+                key, detail = entries[index - 1]
+                value = '{}: {}'.format(key, detail)
+            try:
+                addon.setSetting('history_provider_status_{}'.format(index), value)
+            except Exception:
+                pass
+        return OrderedDict(entries)
+
+    def configure(self, addon):
+        result = self.primary.configure(addon)
+        self.refresh_settings_status(addon)
+        return result
 
     @staticmethod
     def _can_read(provider):

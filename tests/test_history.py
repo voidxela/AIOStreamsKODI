@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from collections import OrderedDict
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'plugin.video.aiostreams'))
 if ROOT not in sys.path:
@@ -71,6 +72,13 @@ class LocalHistoryTests(unittest.TestCase):
         self.provider.mark_watched(first, True)
         self.assertTrue(self.provider.get_state(second).watched)
 
+    def test_local_provider_exposes_ordered_read_only_status(self):
+        config = self.provider.get_config()
+        self.assertIsInstance(config, OrderedDict)
+        self.assertEqual(['Status', 'Database', 'Tracked items', 'Watched items', 'Resume points'],
+                         list(config))
+        self.assertEqual('0', config['Tracked items'])
+
 
 class _UnavailableProvider:
     provider_id = 'trakt_legacy'
@@ -99,3 +107,21 @@ class HistoryManagerTests(unittest.TestCase):
             self.assertTrue(result.succeeded)
             self.assertEqual('local', result.provider_id)
             self.assertTrue(local.get_state(media).watched)
+
+    def test_manager_projects_provider_config_to_read_only_settings(self):
+        class Addon:
+            def __init__(self):
+                self.values = {}
+
+            def setSetting(self, name, value):
+                self.values[name] = value
+
+        with tempfile.TemporaryDirectory() as path:
+            local = LocalHistoryProvider(LocalHistoryStorage(os.path.join(path, 'user_state.db')))
+            manager = HistoryManager(lambda name, default='': 'local' if name == 'history_provider' else default,
+                                     {'local': local})
+            addon = Addon()
+            config = manager.refresh_settings_status(addon)
+            self.assertEqual('Ready', config['Status'])
+            self.assertTrue(addon.values['history_provider_status_1'].startswith('Status: Ready'))
+            self.assertTrue(addon.values['history_provider_status_5'].startswith('Resume points:'))

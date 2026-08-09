@@ -18,6 +18,7 @@ class HistoryDependencies:
     get_meta: object = None
     create_listitem: object = None
     origin_fingerprint: object = None
+    addon: object = None
 
 
 def _media(params, dependencies):
@@ -133,4 +134,14 @@ def import_legacy_trakt_history(params, dependencies):
         _refresh()
     else:
         xbmcgui.Dialog().notification('AIOStreams', 'Unable to import cached Trakt history', xbmcgui.NOTIFICATION_WARNING)
+    return result
+
+
+def configure_provider(params, dependencies):
+    """Open the active provider's own configuration wizard."""
+    result = dependencies.history_manager.configure(dependencies.addon)
+    if result.succeeded:
+        xbmcgui.Dialog().notification('AIOStreams', 'History provider configuration updated', xbmcgui.NOTIFICATION_INFO)
+    elif result.code.value != 'disabled':
+        xbmcgui.Dialog().notification('AIOStreams', 'History provider configuration unavailable', xbmcgui.NOTIFICATION_WARNING)
     return result

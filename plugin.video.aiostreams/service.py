@@ -324,6 +324,7 @@ class AIOStreamsService:
             # Reload addon reference to get fresh settings
             self.addon = xbmcaddon.Addon()
             self.auto_sync_enabled = self.addon.getSetting('trakt_sync_auto') == 'true'
+            self.history_manager.refresh_settings_status(self.addon)
             xbmc.log(f'[AIOStreams Service] Auto-sync enabled: {self.auto_sync_enabled}', xbmc.LOGDEBUG)
         except Exception as e:
             xbmc.log(f'[AIOStreams Service] Error reloading settings: {e}', xbmc.LOGERROR)

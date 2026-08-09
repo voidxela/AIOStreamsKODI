@@ -17,15 +17,29 @@
         <setting id="autoplay_next_episode" type="bool" label="Signal UpNext (Kodi script.service.upnext)" default="true"/>
     </category>
 
-    <category label="History &amp; Progress">
-        <setting id="history_provider" type="select" label="History Provider" values="local|none" default="local"/>
+    <category label="History">
+        <setting id="history_provider" type="select" label="History Provider" values="local|trakt_legacy|none" default="local"/>
         <setting id="history_fallback_provider" type="select" label="Fallback Provider" values="local|none" default="local" visible="eq(-1,trakt_legacy)"/>
-        <setting id="track_playback_progress" type="bool" label="Track Playback Progress" default="true" enable="!eq(-2,none)"/>
-        <setting id="auto_resume" type="bool" label="Auto Resume Playback" default="true" enable="!eq(-3,none)"/>
-        <setting id="auto_mark_watched_percent" type="number" label="Mark Watched At Percentage" default="90" enable="!eq(-4,none)"/>
+
+        <setting id="history_provider_configuration" type="lsep" label="Provider Configuration"/>
+        <setting id="history_configure_provider" type="action" label="Configure History Provider" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_configure_provider)"/>
+        <setting id="history_provider_status_1" type="text" label="Provider Status" default="" enable="false"/>
+        <setting id="history_provider_status_2" type="text" label="Provider Status" default="" enable="false"/>
+        <setting id="history_provider_status_3" type="text" label="Provider Status" default="" enable="false"/>
+        <setting id="history_provider_status_4" type="text" label="Provider Status" default="" enable="false"/>
+        <setting id="history_provider_status_5" type="text" label="Provider Status" default="" enable="false"/>
+
+        <setting id="history_playback_controls" type="lsep" label="Playback Behavior"/>
+        <setting id="track_playback_progress" type="bool" label="Trace Playback Progress" default="true"/>
+        <setting id="auto_resume" type="bool" label="Auto Resume Playback" default="true"/>
+        <setting id="auto_mark_watched_percent" type="number" label="Mark Watched At Percentage" default="90"/>
+
+        <setting id="history_maintenance" type="lsep" label="History Maintenance"/>
         <setting id="clear_local_history" type="action" label="Clear Local History" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_clear_local)"/>
         <setting id="import_cached_trakt_history" type="action" label="Import Cached Trakt History into Local History" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_import_legacy_trakt)"/>
         <setting id="history_provider_migrated" type="text" default="false" visible="false"/>
+        <setting id="trakt_client_id" type="text" default="" visible="false"/>
+        <setting id="trakt_client_secret" type="text" default="" option="hidden" visible="false"/>
     </category>
 
     <!-- Integrations Settings -->
@@ -39,12 +53,6 @@
         <setting id="aiostreams_password" type="text" label="Password" default="" option="hidden" visible="false"/>
         <setting id="base_url" type="text" label="Manifest URL" default="" visible="false"/>
         <setting id="timeout" type="number" label="Request Timeout (seconds)" default="10"/>
-
-        <setting id="trakt_config" type="lsep" label="Legacy Trakt Integration"/>
-        <setting id="trakt_client_id" type="text" label="Client ID" default=""/>
-        <setting id="trakt_client_secret" type="text" label="Client Secret" default="" option="hidden"/>
-        <setting id="trakt_authorize" type="action" label="Authorize Trakt" action="RunPlugin(plugin://plugin.video.aiostreams/?action=trakt_auth)"/>
-        <setting id="trakt_revoke" type="action" label="Revoke Authorization" action="RunPlugin(plugin://plugin.video.aiostreams/?action=trakt_revoke)"/>
 
         <setting id="trakt_sync" type="lsep" label="Sync Settings"/>
         <setting id="trakt_sync_auto" type="bool" label="Enable Auto-Sync (Background Service)" default="true"/>

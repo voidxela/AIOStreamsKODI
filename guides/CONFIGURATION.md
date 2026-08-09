@@ -59,12 +59,17 @@ Keep a secure note of your specific AIOStreams instance details to ensure seamle
 - **UUID**: `[Your Instance UUID]`
 - **Password**: `[Your Instance Password]`
 
-## History & Progress
+## History
 
 New profiles use **Local History**, stored in the add-on profile's `user_state.db`.
 It tracks watched state, resume points, and Next Up without sending playback
-events to a third party. Select **Disabled** in *History & Progress* to turn
+events to a third party. Select **Disabled** in *History* to turn
 off history UI and writes entirely.
+
+Each provider has a **Configure History Provider** wizard and publishes its
+own read-only status details on this page. Local History shows its database
+path and tracking metrics. The legacy Trakt wizard owns the user-supplied
+client credentials and authorization flow.
 
 Existing profiles that already have a valid user-configured Trakt token are
 migrated once to the **legacy Trakt history** compatibility provider. The

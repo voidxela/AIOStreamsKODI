@@ -1,4 +1,6 @@
 """Profile-local history provider."""
+from collections import OrderedDict
+
 from .models import (HistoryMediaRef, HistoryState, PlaybackEvent,
                      ProviderCapabilities, ProviderResult, ProviderResultCode,
                      ProviderStatus)
@@ -19,6 +21,43 @@ class LocalHistoryProvider:
                                   capabilities=ProviderCapabilities(progress=True, next_up=True))
         except Exception as error:
             return ProviderStatus(self.provider_id, True, False, message=type(error).__name__)
+
+    def configure(self, addon):
+        """Open the local provider's small, self-contained configuration wizard."""
+        try:
+            import xbmcgui
+            self.storage.initialize()
+            metrics = self.storage.statistics()
+            message = (
+                'Local History is ready. It does not require an account.\n\n'
+                'Database: {}\n'
+                'Tracked items: {}\n'
+                'Watched items: {}\n'
+                'Resume points: {}\n'
+                'Series in progress: {}'
+            ).format(
+                self.storage.database.database_path, metrics['items'], metrics['watched'],
+                metrics['resume'], metrics['series'],
+            )
+            xbmcgui.Dialog().ok('Local History', message)
+            return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id)
+        except Exception as error:
+            return ProviderResult(ProviderResultCode.TEMPORARY_FAILURE, self.provider_id, type(error).__name__)
+
+    def get_config(self):
+        status = self.status()
+        values = OrderedDict()
+        values['Status'] = 'Ready' if status.available else 'Unavailable ({})'.format(status.message or 'unknown error')
+        values['Database'] = self.storage.database.database_path
+        if status.available:
+            try:
+                metrics = self.storage.statistics()
+                values['Tracked items'] = str(metrics['items'])
+                values['Watched items'] = str(metrics['watched'])
+                values['Resume points'] = str(metrics['resume'])
+            except Exception:
+                values['Metrics'] = 'Unavailable'
+        return values
 
     def _result(self, operation):
         status = self.status()

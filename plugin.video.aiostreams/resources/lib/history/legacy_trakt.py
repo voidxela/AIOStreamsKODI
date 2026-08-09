@@ -3,6 +3,8 @@
 This is deliberately a thin wrapper.  New functionality belongs in a future
 provider, not in the legacy user-credential integration.
 """
+from collections import OrderedDict
+
 from .models import (HistoryMediaRef, HistoryState, NextUpEntry, PlaybackEvent,
                      ProviderCapabilities, ProviderResult, ProviderResultCode,
                      ProviderStatus, ResumePoint)
@@ -10,6 +12,9 @@ from .models import (HistoryMediaRef, HistoryState, NextUpEntry, PlaybackEvent,
 
 class LegacyTraktHistoryProvider:
     provider_id = 'trakt_legacy'
+
+    def __init__(self, get_setting=None):
+        self._get_setting = get_setting or (lambda name, default='': default)
 
     def _trakt(self):
         from resources.lib import trakt
@@ -25,6 +30,57 @@ class LegacyTraktHistoryProvider:
                                   capabilities=ProviderCapabilities(progress=True, next_up=True, synchronization=True))
         except Exception as error:
             return ProviderStatus(self.provider_id, True, False, authenticated=False, message=type(error).__name__)
+
+    def configure(self, addon):
+        """Configure user-supplied legacy credentials, then start device OAuth."""
+        try:
+            import xbmcgui
+            action = xbmcgui.Dialog().select('Legacy Trakt History', [
+                'Set client credentials', 'Authorize Trakt', 'Revoke authorization',
+            ])
+            if action < 0:
+                return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id, 'Configuration cancelled')
+            if action == 0:
+                client_id = xbmcgui.Dialog().input(
+                    'Legacy Trakt Client ID', defaultt=addon.getSetting('trakt_client_id'),
+                    type=xbmcgui.INPUT_ALPHANUM,
+                )
+                if not client_id:
+                    return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id, 'Configuration cancelled')
+                client_secret = xbmcgui.Dialog().input(
+                    'Legacy Trakt Client Secret', defaultt=addon.getSetting('trakt_client_secret'),
+                    type=xbmcgui.INPUT_ALPHANUM,
+                )
+                if not client_secret:
+                    return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id, 'Configuration cancelled')
+                addon.setSetting('trakt_client_id', client_id)
+                addon.setSetting('trakt_client_secret', client_secret)
+                return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id)
+            if action == 1:
+                return ProviderResult(
+                    ProviderResultCode.SUCCESS if self._trakt().authorize() else ProviderResultCode.TEMPORARY_FAILURE,
+                    self.provider_id,
+                )
+            self._trakt().revoke_authorization()
+            return ProviderResult(ProviderResultCode.SUCCESS, self.provider_id)
+        except Exception as error:
+            return ProviderResult(ProviderResultCode.TEMPORARY_FAILURE, self.provider_id, type(error).__name__)
+
+    def get_config(self):
+        status = self.status()
+        values = OrderedDict()
+        values['Status'] = 'Authorized' if status.available else 'Authorization required'
+        try:
+            username = self._trakt().get_trakt_username()
+        except Exception:
+            username = ''
+        if username:
+            values['Account'] = username
+        client_id = self._get_setting('trakt_client_id', '')
+        client_secret = self._get_setting('trakt_client_secret', '')
+        values['Client credentials'] = 'Configured' if client_id and client_secret else 'Required'
+        values['Background sync'] = 'Enabled' if self._get_setting('trakt_sync_auto', 'true') == 'true' else 'Disabled'
+        return values
 
     def _unavailable(self):
         status = self.status()

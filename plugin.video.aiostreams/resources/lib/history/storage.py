@@ -21,6 +21,25 @@ class LocalHistoryStorage:
     def initialize(self):
         self.database.initialize()
 
+    def statistics(self):
+        """Return inexpensive provider metrics for the read-only settings page."""
+        with self.database._connection() as connection:
+            items = connection.execute('SELECT COUNT(*) FROM history_items').fetchone()[0]
+            watched = connection.execute(
+                'SELECT COUNT(*) FROM history_items WHERE watched=1'
+            ).fetchone()[0]
+            resume = connection.execute(
+                'SELECT COUNT(*) FROM history_items '
+                'WHERE watched=0 AND resume_time >= 15'
+            ).fetchone()[0]
+            series = connection.execute(
+                'SELECT COUNT(*) FROM history_series WHERE last_played_at IS NOT NULL'
+            ).fetchone()[0]
+        return {
+            'items': int(items), 'watched': int(watched),
+            'resume': int(resume), 'series': int(series),
+        }
+
     def _timestamp(self):
         return self.database._timestamp()
 
