@@ -66,7 +66,7 @@ It tracks watched state, resume points, and Next Up without sending playback
 events to a third party. Select **Disabled** in *History* to turn
 off history UI and writes entirely.
 
-Use **Select History Provider** to persist the active provider, then
+Choose the active provider from **History Provider**, then
 **Configure History Provider** to open its wizard. The active provider
 publishes its own read-only status details on this page. Local History shows
 its database path and tracking metrics. The legacy Trakt wizard owns the

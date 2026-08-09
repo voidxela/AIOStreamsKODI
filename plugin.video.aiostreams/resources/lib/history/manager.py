@@ -85,23 +85,28 @@ class HistoryManager:
         return self.primary.get_config()
 
     def refresh_settings_status(self, addon):
-        """Project provider-owned status values into named read-only settings."""
-        try:
-            entries = self.get_config()
-        except Exception as error:
-            entries = OrderedDict((('disabled_history_status', 'Unavailable ({})'.format(type(error).__name__)),))
+        """Project every provider's status into its named read-only settings.
+
+        Kodi reevaluates ``visible`` conditions as a select setting changes,
+        but it does not call into the add-on to populate the newly visible
+        fields.  Keeping each provider's own fields populated lets switching
+        the native History Provider control update the page immediately.
+        """
+        entries = OrderedDict()
         setting_ids = []
         for provider in self.providers.values():
-            setting_ids.extend(getattr(provider, 'config_setting_ids', ()))
+            provider_setting_ids = getattr(provider, 'config_setting_ids', ())
+            setting_ids.extend(provider_setting_ids)
+            try:
+                entries.update(provider.get_config())
+            except Exception as error:
+                for setting_id in provider_setting_ids:
+                    entries[setting_id] = 'Unavailable ({})'.format(type(error).__name__)
         for setting_id in setting_ids:
             try:
                 addon.setSetting(setting_id, str(entries.get(setting_id, '')))
             except Exception:
                 pass
-        try:
-            addon.setSetting('history_provider_display', self.provider_label)
-        except Exception:
-            pass
         return entries
 
     def select_provider(self, addon, provider_id):

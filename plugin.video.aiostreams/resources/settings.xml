@@ -18,27 +18,25 @@
     </category>
 
     <category label="History">
-        <setting id="history_provider" type="text" default="local" visible="false"/>
+        <setting id="history_provider" type="select" label="History Provider" values="local|trakt_legacy|none" default="local"/>
         <setting id="history_fallback_provider" type="select" label="Fallback Provider" values="local|none" default="local" visible="eq(-1,trakt_legacy)"/>
 
-        <setting id="history_provider_display" type="text" label="History Provider" default="Local History" enable="false"/>
-        <setting id="history_select_provider" type="action" label="Select History Provider" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_select_provider)"/>
         <setting id="history_configure_provider" type="action" label="Configure History Provider" action="RunPlugin(plugin://plugin.video.aiostreams/?action=history_configure_provider)"/>
 
-        <setting id="local_history_configuration" type="lsep" label="Local History Status" visible="eq(-5,local)"/>
-        <setting id="local_history_database_path" type="text" label="Database Path" default="" enable="false" visible="eq(-6,local)"/>
-        <setting id="local_history_tracked_items" type="text" label="Tracked Items" default="" enable="false" visible="eq(-7,local)"/>
-        <setting id="local_history_watched_items" type="text" label="Watched Items" default="" enable="false" visible="eq(-8,local)"/>
-        <setting id="local_history_resume_points" type="text" label="Resume Points" default="" enable="false" visible="eq(-9,local)"/>
+        <setting id="local_history_configuration" type="lsep" label="Local History Status" visible="eq(-3,local)"/>
+        <setting id="local_history_database_path" type="text" label="Database Path" default="" enable="false" visible="eq(-4,local)"/>
+        <setting id="local_history_tracked_items" type="text" label="Tracked Items" default="" enable="false" visible="eq(-5,local)"/>
+        <setting id="local_history_watched_items" type="text" label="Watched Items" default="" enable="false" visible="eq(-6,local)"/>
+        <setting id="local_history_resume_points" type="text" label="Resume Points" default="" enable="false" visible="eq(-7,local)"/>
 
-        <setting id="legacy_trakt_configuration" type="lsep" label="Legacy Trakt Status" visible="eq(-10,trakt_legacy)"/>
-        <setting id="legacy_trakt_authorization" type="text" label="Authorization" default="" enable="false" visible="eq(-11,trakt_legacy)"/>
-        <setting id="legacy_trakt_account" type="text" label="Account" default="" enable="false" visible="eq(-12,trakt_legacy)"/>
-        <setting id="legacy_trakt_credentials" type="text" label="Client Credentials" default="" enable="false" visible="eq(-13,trakt_legacy)"/>
-        <setting id="legacy_trakt_background_sync" type="text" label="Background Sync" default="" enable="false" visible="eq(-14,trakt_legacy)"/>
+        <setting id="legacy_trakt_configuration" type="lsep" label="Legacy Trakt Status" visible="eq(-8,trakt_legacy)"/>
+        <setting id="legacy_trakt_authorization" type="text" label="Authorization" default="" enable="false" visible="eq(-9,trakt_legacy)"/>
+        <setting id="legacy_trakt_account" type="text" label="Account" default="" enable="false" visible="eq(-10,trakt_legacy)"/>
+        <setting id="legacy_trakt_credentials" type="text" label="Client Credentials" default="" enable="false" visible="eq(-11,trakt_legacy)"/>
+        <setting id="legacy_trakt_background_sync" type="text" label="Background Sync" default="" enable="false" visible="eq(-12,trakt_legacy)"/>
 
-        <setting id="disabled_history_configuration" type="lsep" label="Disabled History Status" visible="eq(-15,none)"/>
-        <setting id="disabled_history_status" type="text" label="Status" default="" enable="false" visible="eq(-16,none)"/>
+        <setting id="disabled_history_configuration" type="lsep" label="Disabled History Status" visible="eq(-13,none)"/>
+        <setting id="disabled_history_status" type="text" label="Status" default="" enable="false" visible="eq(-14,none)"/>
 
         <setting id="history_playback_controls" type="lsep" label="Playback Behavior"/>
         <setting id="track_playback_progress" type="bool" label="Trace Playback Progress" default="true"/>
